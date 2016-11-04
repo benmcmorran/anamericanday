@@ -1,0 +1,99 @@
+{
+    "bins": {
+        "male": {
+            "SEX": "01"
+        },
+        "female": {
+            "SEX": "02"
+        },
+        "age_15-24": {
+            "AGE": [15, 24]
+        },
+        "age_25-64": {
+            "AGE": [25, 64]
+        },
+        "age_65_more": {
+            "AGE": [65, 85]
+        },
+        "white": {
+            "RACE": "0100"
+        },
+        "black": {
+            "RACE": "0110"
+        },
+        "hispanic": {
+            "HISPAN": {
+                "not": "0100"
+            }
+        },
+        "employed": {
+            "EMPSTAT": [1, 2]
+        },
+        "unemployed": {
+            "EMPSTAT": [3, 4]
+        },
+        "income_less_50": {
+            "FAMINCOME": [1, 11]
+        },
+        "income_50_100": {
+            "FAMINCOME": [12, 14]
+        },
+        "income_100_more": {
+            "FAMINCOME": [15, 16]
+        }
+    },
+    "activities": {
+        "personal_care": [10000, 19999],
+        "household_activities": [20000, 29999],
+        "care_household_members": [30000, 39999],
+        "care_non_household_members": [40000, 49999],
+        "work": [50000, 59999],
+        "education": [60000, 69999],
+        "consumer_purchases": [70000, 79999],
+        "pro_services": [80000, 89999],
+        "household_services": [90000, 99999],
+        "gov_services": [100000, 109999],
+        "eat_drink": [110000, 119999],
+        "social_relax_leisure": [120000, 129999],
+        "sports_exercise": [130000, 139999],
+        "religion": [140000, 149999],
+        "volunteering": [150000, 159999],
+        "calls": [160000, 169999],
+        "travel": [180000, 189999]
+    },
+    "fields": [
+        {
+            "CASEID":      [2, 15],
+            "YEAR":        [16, 20],
+            "STATEFIP":    [21, 22],
+            "COUNTY":      [23, 27],
+            "FAMINCOME":   [28, 30]
+        },
+        {
+            "CASEID":      [2, 15],
+            "YEAR":        [16, 20],
+            "PERNUM":      [21, 22],
+            "LINENO":      [23, 25],
+            "MONTH":       [26, 28],
+            "DAY":         [29, 30],
+            "DATE":        [31, 39],
+            "WT06":        [40, 56],
+            "AGE":         [57, 59],
+            "SEX":         [60, 61],
+            "RACE":        [62, 65],
+            "HISPAN":      [66, 69],
+            "EMPSTAT":     [70, 71]
+        },
+        {
+            "CASEID":      [2, 15],
+            "YEAR":        [16, 20],
+            "ACTIVITY":    [21, 26],
+            "START":       [27, 34],
+            "STOP":        [35, 42]
+        },
+        {
+            "CASEID":      [2, 15],
+            "YEAR":        [16, 20]
+        }
+    ]
+}

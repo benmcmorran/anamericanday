@@ -1,0 +1,13 @@
+Configuration JSON
+
+bin object
+
+key is bin name
+value object is bin test
+    key is field name
+    value is
+        string: exact match
+        list of numbers: any value in range inclusive
+        object: compound match
+            key is:
+                not: invert result of value
