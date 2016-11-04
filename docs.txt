@@ -3,11 +3,17 @@ Configuration JSON
 bin object
 
 key is bin name
+bool: as is
 value object is bin test
     key is field name
     value is
-        string: exact match
+        string: exact match, if first char '!' then invert match
         list of numbers: any value in range inclusive
-        object: compound match
-            key is:
-                not: invert result of value
+
+
+dimensions
+bin
+time scale
+activity
+
+maybe find common sequences of activities instead of most common activities

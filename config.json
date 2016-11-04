@@ -1,5 +1,6 @@
 {
     "bins": {
+        "all": true,
         "male": {
             "SEX": "01"
         },
@@ -22,9 +23,7 @@
             "RACE": "0110"
         },
         "hispanic": {
-            "HISPAN": {
-                "not": "0100"
-            }
+            "HISPAN": "!0100"
         },
         "employed": {
             "EMPSTAT": [1, 2]

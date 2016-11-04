@@ -91,6 +91,10 @@ var Utils = {
     }
 };
 
+var State = {
+    selectedActivity: undefined
+};
+
 function run() {
     var context = Utils.createContext('#content', 960, 500);
 
@@ -112,8 +116,13 @@ function run() {
         .y0(function (d) { return y(d[0]); })
         .y1(function (d) { return y(d[1]); });
 
+    var singleArea = d3.area()
+        .x(function (d) { return x(d.data.date); })
+        .y0(function (d) { return y(0); })
+        .y1(function (d) { return y(d[1] - d[0]); });
+
     d3.csv(
-        'day.csv',
+        'day_demo.csv',
         function (d, i, columns) {
             d.date = Utils.dateFromMinute(+d.Minute);
             for (var i = 0; i < columns.length; i++) {
@@ -124,12 +133,14 @@ function run() {
         function (error, data) {
             if (error) throw error;
 
-            var keys = data.columns.slice(1);
+            var keys = data.columns.filter(function (d) {
+                return d.startsWith('male');
+            });
             z.domain(keys);
             stack.keys(keys);
             var stackedData = stack(data);
             stackedData = stackedData.map(function (d) {
-                d.center = Utils.centerOfLargestArea(d, .05);
+                d.center = Utils.centerOfLargestArea(d, .02);
                 return d;
             });
 
@@ -167,17 +178,43 @@ function run() {
                 .style('font', '10px sans-serif')
                 .text(function (d) { return d.key; });
 
-            layer.selectAll('path')
+            layer
                 .on('mouseover', function () {
                     var self = this;
-                    layer.selectAll('path')
-                        .filter(function () { return this !== self; })
+                    layer.selectAll('.area')
+                        .filter(function () { return !self.contains(this); })
                         .transition()
                         .style('fill', function (d) {
                             var color = d3.hsl(z(d.key));
                             color.s = 0;
                             return color;
                         });
+                })
+                .on('click', function () {
+                    var activity = d3.select(this).data()[0].key;
+                    if (State.selectedActivity === activity) {
+                        layer.transition()
+                            .delay(800)
+                            .duration(500)
+                            .style('opacity', 1)
+                            .style('pointer-events', 'visiblePainted')
+                        d3.select(this).select('.area')
+                            .transition('shape')
+                            .duration(1000)
+                            .attr('d', area);
+                        State.selectedActivity = undefined;
+                    } else {
+                        var self = this;
+                        layer.filter(function () { return this !== self; })
+                            .style('pointer-events', 'none')
+                            .call(Utils.fadeOut);
+                        d3.select(this).select('.area')
+                            .transition('shape')
+                            .delay(300)
+                            .duration(1000)
+                            .attr('d', singleArea);
+                        State.selectedActivity = activity;
+                    }
                 });
             
             context.chart.on('mouseout', function () {
