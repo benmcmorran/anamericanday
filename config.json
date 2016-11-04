@@ -13,7 +13,7 @@
         "age_25-64": {
             "AGE": [25, 64]
         },
-        "age_65_more": {
+        "age_65-more": {
             "AGE": [65, 85]
         },
         "white": {
@@ -31,13 +31,13 @@
         "unemployed": {
             "EMPSTAT": [3, 4]
         },
-        "income_less_50": {
+        "income_less-50": {
             "FAMINCOME": [1, 11]
         },
-        "income_50_100": {
+        "income_50-100": {
             "FAMINCOME": [12, 14]
         },
-        "income_100_more": {
+        "income_100-more": {
             "FAMINCOME": [15, 16]
         }
     },

@@ -44,12 +44,32 @@ def in_bin(test, record):
     else:
         raise 'Unknown bin test'
 
+def normalize(counts):
+    for row in counts:
+        for bin in row:
+            total = sum(bin)
+            if total == 0:
+                continue
+            for i in range(len(bin)):
+                bin[i] /= total
+
+def write(path, counts, title, bins, activities):
+    with open(path, 'w') as output:
+        columns = [title] + ['{}:{}'.format(bin, name) for bin, _ in bins for name, _ in activities]
+        writer = csv.writer(output, lineterminator='\n')
+        writer.writerow(columns)
+
+        for i, row in enumerate(counts):
+            writer.writerow([i] + ["{0:.5f}".format(value) for bin in row for value in bin])
+
 def run():
     config = load_json('config.json')
     bins = list(config['bins'].items())
     activities = list(config['activities'].items())
     fields = config['fields']
-    counts = [[[0] * len(activities) for _ in range(len(bins))] for _ in range(60 * 24)]
+    
+    day_counts = [[[0] * len(activities) for _ in range(len(bins))] for _ in range(60 * 24)]
+    week_counts = [[[0] * len(activities) for _ in range(len(bins))] for _ in range(7)]
 
     c = 0
     with open('raw_data.dat') as input:
@@ -57,9 +77,14 @@ def run():
             c += 1
             if c % 100000 == 0:
                 print('Processed', c, 'records')
+
             activity = int(record['ACTIVITY'])
             start = minutes(record['START'])
             stop = minutes(record['STOP'])
+            duration = stop - start
+            if duration < 0:
+                duration += 24 * 60
+            day_of_week = int(record['DAY']) - 1
             weight = float(record['WT06'])
 
             for i, (_, codes) in enumerate(activities):
@@ -68,25 +93,17 @@ def run():
                         if in_bin(test, record):
                             if (stop < start):
                                 for minute in range(start, 60 * 24):
-                                    counts[minute][j][i] += weight
+                                    day_counts[minute][j][i] += weight
                                 for minute in range(0, stop):
-                                    counts[minute][j][i] += weight
+                                    day_counts[minute][j][i] += weight
                             else:
                                 for minute in range(start, stop):
-                                    counts[minute][j][i] += weight
-    
-    for row in counts:
-        for bin in row:
-            total = sum(bin)
-            if total == 0:
-                continue
-            for i in range(len(bin)):
-                bin[i] /= total
-    
-    with open('day_demo.csv', 'w') as output:
-        columns = ['Minute'] + ['{}:{}'.format(bin, name) for bin, _ in bins for name, _ in activities]
-        writer = csv.writer(output, lineterminator='\n')
-        writer.writerow(columns)
+                                    day_counts[minute][j][i] += weight
+                            if day_of_week < 7:
+                                week_counts[day_of_week][j][i] += weight * duration
 
-        for i, row in enumerate(counts):
-            writer.writerow([i] + ["{0:.5f}".format(value) for bin in row for value in bin])
+    normalize(day_counts)
+    normalize(week_counts)
+
+    write('day_demo.csv', day_counts, 'Minute', bins, activities)
+    write('week_demo.csv', week_counts, 'Day', bins, activities)

@@ -87,7 +87,11 @@ var Utils = {
     },
 
     dateFromMinute: function (minute) {
-        return d3.timeMinute.offset(new Date(2000, 0, 1, 4), minute);
+        return d3.timeMinute.offset(new Date(2000, 0, 2, 4), minute);
+    },
+
+    dateFromDayOfWeek: function (dayOfWeek) {
+        return d3.timeDay.offset(new Date(2000, 0, 2, 0), dayOfWeek);
     }
 };
 
@@ -99,7 +103,8 @@ function run() {
     var context = Utils.createContext('#content', 960, 500);
 
     var x = d3.scaleTime()
-        .domain([new Date(2000, 0, 1, 4), new Date(2000, 0, 2, 4)])
+        .domain([new Date(2000, 0, 2, 4), new Date(2000, 0, 3, 4)])
+        // .domain([new Date(2000, 0, 2, 0), new Date(2000, 0, 8, 0)])
         .range([0, context.size.width]);
     
     var y = d3.scaleLinear()
@@ -125,6 +130,7 @@ function run() {
         'day_demo.csv',
         function (d, i, columns) {
             d.date = Utils.dateFromMinute(+d.Minute);
+            // d.date = Utils.dateFromDayOfWeek(+d.Day);
             for (var i = 0; i < columns.length; i++) {
                 d[columns[i]] = +d[columns[i]];
             }
@@ -134,7 +140,7 @@ function run() {
             if (error) throw error;
 
             var keys = data.columns.filter(function (d) {
-                return d.startsWith('male');
+                return d.startsWith('all');
             });
             z.domain(keys);
             stack.keys(keys);
@@ -143,10 +149,6 @@ function run() {
                 d.center = Utils.centerOfLargestArea(d, .02);
                 return d;
             });
-
-            // for (var i = 0; i < stackedData[0].length; i++) {
-            //     console.log(i + ' ' + stackedData[0][i][0] + ' ' + stackedData[0][i][1]);
-            // }
 
             var layer = context.chart.selectAll('.layer')
                 .data(stackedData)
@@ -159,19 +161,24 @@ function run() {
                 .style('fill', function (d) { return z(d.key); })
                 .attr('d', area);
 
-            x.axis = context.chart.append('g')
+            x.axis = d3.axisBottom(x)
+                .tickFormat(d3.timeFormat('%I %p'))
+                .ticks(d3.timeHour.every(2));
+                // .tickFormat(d3.timeFormat('%a'))
+                // .ticks(d3.timeDay.every(1));
+            x.axisSelection = context.chart.append('g')
                 .attr('transform', 'translate(0 ' + context.size.height + ')')
-                .call(d3.axisBottom(x)
-                    .tickFormat(d3.timeFormat('%I %p'))
-                    .ticks(d3.timeHour.every(2)));
+                .call(x.axis);
 
-            y.axis = context.chart.append('g')
-                .call(d3.axisLeft(y)
-                    .tickFormat(d3.format('.0%')));
+            y.axis = d3.axisLeft(y)
+                .tickFormat(d3.format('.0%'));
+            y.axisSelection = context.chart.append('g')
+                .call(y.axis);
 
             layer.filter(function (d) { return d.center !== undefined; })
                 .append('text')
                 .attr('x', function (d) { return x(Utils.dateFromMinute(d.center.x)); })
+                // .attr('x', function (d) { return x(Utils.dateFromDayOfWeek(d.center.x)); })
                 .attr('y', function (d) { return y(d.center.y); })
                 .attr('dy', '.35em')
                 .style('text-anchor', 'middle')
@@ -192,16 +199,25 @@ function run() {
                 })
                 .on('click', function () {
                     var activity = d3.select(this).data()[0].key;
+
                     if (State.selectedActivity === activity) {
-                        layer.transition()
-                            .delay(800)
-                            .duration(500)
-                            .style('opacity', 1)
-                            .style('pointer-events', 'visiblePainted')
+                        y.domain([0, 1]);
+                        y.axisSelection
+                            .transition()
+                            .duration(1000)
+                            .call(y.axis);
                         d3.select(this).select('.area')
                             .transition('shape')
                             .duration(1000)
+                            .attr('d', singleArea)
+                            .transition()
+                            .duration(1000)
                             .attr('d', area);
+                        layer.transition()
+                            .delay(1800)
+                            .duration(500)
+                            .style('opacity', 1)
+                            .style('pointer-events', 'visiblePainted')
                         State.selectedActivity = undefined;
                     } else {
                         var self = this;
@@ -212,7 +228,23 @@ function run() {
                             .transition('shape')
                             .delay(300)
                             .duration(1000)
-                            .attr('d', singleArea);
+                            .attr('d', singleArea)
+                            .on('end', function () {
+                                y.domain([0, d3.max(
+                                    d3.select(this).data()[0],
+                                    function (d) {
+                                        return d[1] - d[0];
+                                    }
+                                )]);
+                                y.axisSelection
+                                    .transition()
+                                    .duration(1000)
+                                    .call(y.axis);
+                                d3.select(this)
+                                    .transition('shape')
+                                    .duration(1000)
+                                    .attr('d', singleArea);
+                            });
                         State.selectedActivity = activity;
                     }
                 });
