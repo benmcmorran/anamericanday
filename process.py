@@ -1,12 +1,21 @@
 import sys
 import json
 import csv
+import calendar
+import datetime
 
 def minutes(time):
     result = int(time[0:2]) * 60 + int(time[3:5]) - 4 * 60
     if result < 0:
         result += 24 * 60
     return result
+
+def calendar_day(field):
+    date = datetime.datetime.strptime(field[1:], '%Y%m%d').timetuple()
+    if calendar.isleap(date.tm_year) and date.tm_yday >= 60:
+        return date.tm_yday - 1
+    else:
+        return date.tm_yday
 
 def load_json(path):
     with open(path) as data:
@@ -53,14 +62,14 @@ def normalize(counts):
             for i in range(len(bin)):
                 bin[i] /= total
 
-def write(path, counts, title, bins, activities):
+def write(path, counts, title, bins, activities, offset=0):
     with open(path, 'w') as output:
         columns = [title] + ['{}:{}'.format(bin, name) for bin, _ in bins for name, _ in activities]
         writer = csv.writer(output, lineterminator='\n')
         writer.writerow(columns)
 
         for i, row in enumerate(counts):
-            writer.writerow([i] + ["{0:.5f}".format(value) for bin in row for value in bin])
+            writer.writerow([i + offset] + ["{0:.5f}".format(value) for bin in row for value in bin])
 
 def run():
     config = load_json('config.json')
@@ -70,6 +79,8 @@ def run():
     
     day_counts = [[[0] * len(activities) for _ in range(len(bins))] for _ in range(60 * 24)]
     week_counts = [[[0] * len(activities) for _ in range(len(bins))] for _ in range(7)]
+    year_counts = [[[0] * len(activities) for _ in range(len(bins))] for _ in range(365)]
+    age_counts = [[[0] * len(activities) for _ in range(len(bins))] for _ in range(80 - 15 + 1)]
 
     c = 0
     with open('raw_data.dat') as input:
@@ -85,6 +96,8 @@ def run():
             if duration < 0:
                 duration += 24 * 60
             day_of_week = int(record['DAY']) - 1
+            day = calendar_day(record['DATE'])
+            age = int(record['AGE'])
             weight = float(record['WT06'])
 
             for i, (_, codes) in enumerate(activities):
@@ -101,9 +114,16 @@ def run():
                                     day_counts[minute][j][i] += weight
                             if day_of_week < 7:
                                 week_counts[day_of_week][j][i] += weight * duration
+                            year_counts[day][j][i] += weight * duration
+                            if age <= 80:
+                                age_counts[age - 15][j][i] += weight * duration
 
     normalize(day_counts)
     normalize(week_counts)
+    normalize(year_counts)
+    normalize(age_counts)
 
-    write('day_demo.csv', day_counts, 'Minute', bins, activities)
-    write('week_demo.csv', week_counts, 'Day', bins, activities)
+    write('day.csv', day_counts, 'Minute', bins, activities)
+    write('week.csv', week_counts, 'Day', bins, activities)
+    write('year.csv', year_counts, 'Day', bins, activities)
+    write('age.csv', age_counts, 'Age', bins, activities, 15)

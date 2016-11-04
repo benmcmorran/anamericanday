@@ -92,6 +92,10 @@ var Utils = {
 
     dateFromDayOfWeek: function (dayOfWeek) {
         return d3.timeDay.offset(new Date(2000, 0, 2, 0), dayOfWeek);
+    },
+
+    dateFromDayOfYear: function (dayOfYear) {
+        return d3.timeDay.offset(new Date(2001, 0, 1, 0), dayOfYear);
     }
 };
 
@@ -102,9 +106,11 @@ var State = {
 function run() {
     var context = Utils.createContext('#content', 960, 500);
 
-    var x = d3.scaleTime()
-        .domain([new Date(2000, 0, 2, 4), new Date(2000, 0, 3, 4)])
+    var x = /*d3.scaleTime()*/d3.scaleLinear()
+        // .domain([new Date(2000, 0, 2, 4), new Date(2000, 0, 3, 4)])
         // .domain([new Date(2000, 0, 2, 0), new Date(2000, 0, 8, 0)])
+        // .domain([new Date(2001, 0, 1, 0), new Date(2001, 11, 31)])
+        .domain([15, 80])
         .range([0, context.size.width]);
     
     var y = d3.scaleLinear()
@@ -127,10 +133,12 @@ function run() {
         .y1(function (d) { return y(d[1] - d[0]); });
 
     d3.csv(
-        'day_demo.csv',
+        'age.csv',
         function (d, i, columns) {
-            d.date = Utils.dateFromMinute(+d.Minute);
+            // d.date = Utils.dateFromMinute(+d.Minute);
             // d.date = Utils.dateFromDayOfWeek(+d.Day);
+            // d.date = Utils.dateFromDayOfYear(+d.Day);
+            d.date = +d.Age;
             for (var i = 0; i < columns.length; i++) {
                 d[columns[i]] = +d[columns[i]];
             }
@@ -162,10 +170,12 @@ function run() {
                 .attr('d', area);
 
             x.axis = d3.axisBottom(x)
-                .tickFormat(d3.timeFormat('%I %p'))
-                .ticks(d3.timeHour.every(2));
+                // .tickFormat(d3.timeFormat('%I %p'))
+                // .ticks(d3.timeHour.every(2));
                 // .tickFormat(d3.timeFormat('%a'))
                 // .ticks(d3.timeDay.every(1));
+                // .tickFormat(d3.timeFormat('%B'))
+                // .ticks(d3.timeMonth.every(1));
             x.axisSelection = context.chart.append('g')
                 .attr('transform', 'translate(0 ' + context.size.height + ')')
                 .call(x.axis);
@@ -177,8 +187,10 @@ function run() {
 
             layer.filter(function (d) { return d.center !== undefined; })
                 .append('text')
-                .attr('x', function (d) { return x(Utils.dateFromMinute(d.center.x)); })
+                // .attr('x', function (d) { return x(Utils.dateFromMinute(d.center.x)); })
                 // .attr('x', function (d) { return x(Utils.dateFromDayOfWeek(d.center.x)); })
+                // .attr('x', function (d) { return x(Utils.dateFromDayOfYear(d.center.x)); })
+                .attr('x', function (d) { return x(d.center.x); })
                 .attr('y', function (d) { return y(d.center.y); })
                 .attr('dy', '.35em')
                 .style('text-anchor', 'middle')
