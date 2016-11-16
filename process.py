@@ -127,3 +127,30 @@ def run():
     write('week.csv', week_counts, 'Day', bins, activities)
     write('year.csv', year_counts, 'Day', bins, activities)
     write('age.csv', age_counts, 'Age', bins, activities, 15)
+
+def find_sequences():
+    config = load_json('config.json')
+    fields = config['fields']
+    activity_counts = {}
+
+    with open('raw_data.dat') as input:
+        case_id = None
+        activity_list = []
+        c = 0
+        for record in flatten(input, fields):
+            c += 1
+            if c % 100000 == 0:
+                print('Processed', c, 'records')
+            if case_id is None:
+                case_id = record['CASEID']
+            elif case_id != record['CASEID']:
+                case_id = record['CASEID']
+                key = tuple(activity_list)
+                activity_counts[key] = activity_counts.setdefault(key, 0) + 1
+                activity_list = []
+            activity_list.append(record['ACTIVITY'])
+        key = tuple(activity_list)
+        activity_counts[key] = activity_counts.setdefault(key, 0) + 1
+    
+    top_100 = sorted([(v, k) for k, v in activity_counts.items()], reverse=True)[:100]
+    print(top_100)
