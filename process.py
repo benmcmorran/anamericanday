@@ -3,6 +3,7 @@ import json
 import csv
 import calendar
 import datetime
+import random
 
 def minutes(time):
     result = int(time[0:2]) * 60 + int(time[3:5]) - 4 * 60
@@ -154,3 +155,96 @@ def find_sequences():
     
     top_100 = sorted([(v, k) for k, v in activity_counts.items()], reverse=True)[:100]
     print(top_100)
+
+def diary_distance(log1, log2):
+    i = 0
+    j = 0
+
+    last_update_time = 0
+    activity_1 = log1[0][1]
+    activity_2 = log2[0][1]
+
+    distance = 0
+
+    while i < len(log1) - 1 or j < len(log2) - 1:
+
+        increment_i = True
+        if i == len(log1) - 1 or (j < len(log2) - 1 and log1[i + 1][0] > log2[j + 1][0]):
+            increment_i = False
+        
+        if increment_i:
+            i += 1
+            time = log1[i][0]
+            if activity_1 != activity_2:
+                distance += time - last_update_time
+            last_update_time = time
+            activity_1 = log1[i][1]
+        else:
+            j += 1
+            time = log2[j][0]
+            if activity_1 != activity_2:
+                distance += time - last_update_time
+            last_update_time = time
+            activity_2 = log2[j][1]
+
+    if activity_1 != activity_2:
+        distance += 24 * 60 - last_update_time
+
+    return distance
+
+# Adjacent start/stop times always line update
+# First start time of the day is always zero
+# End times are clipped to 60 * 24
+# Ignore reports that don't cover a full day (only 12 of these)
+def find_medoid():
+    config = load_json('config.json')
+    fields = config['fields']
+
+    logs = []
+    weights = []
+
+    print('Importing data')
+
+    with open('raw_data.dat') as input:
+        case_id = None
+        log = []
+        for record in flatten(input, fields):
+            if case_id is None:
+                case_id = record['CASEID']
+                log = []
+            elif case_id != record['CASEID']:
+                case_id = record['CASEID']
+                if random.random() < .1:
+                    logs.append(log)
+                    weights.append(weight)
+                log = []
+            
+            activity = int(record['ACTIVITY'])
+            start = minutes(record['START'])
+            weight = float(record['WT06'])
+
+            log.append((start, activity))
+
+    print('Imported', len(logs), 'logs')
+    print('Computing distances')
+    
+    total_distance = [0] * len(logs)
+
+    count = 0
+    for i in range(len(logs)):
+        for j in range(i, len(logs)):
+            count += 1
+            if count % 100000 == 0:
+                print('Computed', count, 'pairwise distances')
+            distance = diary_distance(logs[i], logs[j])
+            total_distance[i] += distance * weights[j]
+            total_distance[j] += distance * weights[i]
+    
+    val, idx = min((val, idx) for (idx, val) in enumerate(total_distance))
+
+    with open('distances.txt', 'w') as f:
+        for distance in total_distance:
+            f.write(str(distance) + '\n')
+    
+    print('Minimum total distance', val)
+    print('Medoid diary', logs[idx])

@@ -17,3 +17,19 @@ time scale
 activity
 
 maybe find common sequences of activities instead of most common activities
+
+trying to find medoid activity sequence. n^2 problem makes working with full data set difficult
+result with 1%
+4-9 sleep, 9-9:15 travel to work, 9:15-5 work, 5-5:15 travel home, 5:15-6:15 food prep, 6:15-6:35 eating, 6:35-10 TV, 10-4 sleep
+result with 10%
+Medoid diary [(0, 10101), (240, 180501), (260, 50101), (860, 180501), (880, 110101), (900, 120303), (1080, 10101)]
+took 79 minutes to run with ~17,000 records and 147,700,000 pairwise distance comparisons
+31,160 pairwise comparisons per second
+
+trying C implementation to improve speed
+about 50x faster
+for whole dat set
+Minimum total distance: 874980659399005.500000
+Medoid diary: 0: 10101, 240: 180501, 245: 50101, 810: 180302, 812: 30112, 813: 180302, 816: 20201, 846: 110101, 866: 120303, 1020: 120303, 1050:
+10101,
+Completed in 8335 seconds

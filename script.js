@@ -301,6 +301,7 @@ function run() {
                             })
                             .on('click', function () {
                                 var activity = d3.select(this).data()[0].key;
+                                var self = this;
 
                                 if (State.selectedActivity === activity) {
                                     y.domain([0, 1]);
@@ -315,14 +316,16 @@ function run() {
                                         .transition()
                                         .duration(1000)
                                         .attr('d', area);
+                                    layer.filter(function () { return this !== self; })
+                                        .select('.area')
+                                        .attr('d', area);
                                     layer.transition()
                                         .delay(1800)
                                         .duration(500)
                                         .style('opacity', 1)
-                                        .style('pointer-events', 'visiblePainted')
+                                        .style('pointer-events', 'visiblePainted');
                                     State.selectedActivity = undefined;
                                 } else {
-                                    var self = this;
                                     layer.filter(function () { return this !== self; })
                                         .style('pointer-events', 'none')
                                         .call(Utils.fadeOut);
@@ -372,7 +375,7 @@ function run() {
                         .select('.area')
                         .transition('shape')
                         .duration(1000)
-                        .attr('d', area);
+                        .attr('d', State.selectedActivity ? singleArea : area);
                 });
 
             changeTimescale(State.timescale);
