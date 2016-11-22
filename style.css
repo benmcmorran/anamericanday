@@ -1,0 +1,28 @@
+svg text {
+    font-family: sans-serif;
+    font-size: 10px;
+}
+
+.dotslider .axis {
+    stroke: black;
+    stroke-width: 1px;
+}
+
+.dotslider .stop {
+    cursor: pointer;
+}
+
+.dotslider .stop circle {
+    stroke: black;
+    stroke-width: 1px;
+    fill: white;
+}
+
+.dotslider .stop text {
+    text-anchor: middle;
+}
+
+.dotslider .mark {
+    fill: black;
+    pointer-events: none;
+}

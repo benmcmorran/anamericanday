@@ -7,7 +7,7 @@ var Utils = {
 
     createContext: function (selector, width, height) {
         var margin = {
-            top: 20,
+            top: 40,
             left: 40,
             bottom: 20,
             right: 20
@@ -147,6 +147,95 @@ var Utils = {
     }
 };
 
+var DotSlider = {
+    create: function () {
+        var result = Object.create(DotSlider);
+        result.dispatch = d3.dispatch('change');
+        return result;
+    },
+
+    size: function (width, height) {
+        if (width && height) {
+            this.size = [width, height];
+            return this;
+        } else {
+            return this.size;
+        }
+    },
+
+    domain: function (values) {
+        if (values) {
+            this.values = values;
+            return this;
+        } else {
+            return this.values;
+        }
+    },
+
+    element: function (selection) {
+        if (selection) {
+            this.selection = selection;
+            var padding = this.size[0] / this.values.length,
+                halfHeight = this.size[1] / 2;
+
+            selection.attr('class', 'dotslider')
+                .append('line')
+                .attr('class', 'axis')
+                .attr('x1', 0)
+                .attr('x2', this.size[0])
+                .attr('y1', halfHeight)
+                .attr('y2', halfHeight);
+
+            var stops = selection.selectAll('.stop')
+                .data(this.values)
+                .enter()
+                .append('g')
+                .attr('class', 'stop')
+                .attr('transform', function (d, i) {
+                    return 'translate(' + (padding * (i + 1 / 2)) + ' ' + halfHeight + ')';
+                });
+            stops.append('circle')
+                .attr('cx', 0)
+                .attr('cy', 0)
+                .attr('r', 5)
+                .on('mouseover', function () {
+                    d3.select(this)
+                        .transition()
+                        .attr('r', 7);
+                })
+                .on('mouseout', function () {
+                    d3.select(this)
+                        .transition()
+                        .attr('r', 5);
+                });
+            stops.append('text')
+                .attr('x', 0)
+                .attr('y', -10)
+                .text(function (d) { return d; });
+
+            var mark = selection.append('circle')
+                .attr('class', 'mark')
+                .attr('cx', padding / 2)
+                .attr('cy', halfHeight)
+                .attr('r', 5);
+
+            var self = this;
+            stops.on('click', function (d, i) {
+                mark.transition()
+                    .attr('cx', padding * (i + 1 / 2));
+                self.dispatch.call('change', this, d, i);
+            });
+            return this;
+        } else {
+            return this.selection;
+        }
+    },
+
+    on: function (event, callback) {
+        return this.dispatch.on(event, callback);
+    }
+};
+
 var State = {
     selectedActivity: undefined,
     timescale: 'day'
@@ -242,21 +331,13 @@ function run() {
             Chart.initializeAxes(context);
             context.chart.append('g').attr('class', 'layer');
 
-            d3.select('#day').on('click', function () {
-                changeTimescale('day');
-            });
-
-            d3.select('#week').on('click', function () {
-                changeTimescale('week');
-            });
-
-            d3.select('#year').on('click', function () {
-                changeTimescale('year');
-            });
-
-            d3.select('#age').on('click', function () {
-                changeTimescale('age');
-            });
+                var slider = DotSlider.create()
+                .domain(['Day', 'Week', 'Year', 'Lifetime'])
+                .size(960, 50)
+                .element(context.svg.append('g'))
+                .on('change', function (d, i) {
+                    changeTimescale(d === 'Lifetime' ? 'age' : d.toLowerCase());
+                });
 
             function changeTimescale (timescale) {
                 State.timescale = timescale;
