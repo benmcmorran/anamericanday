@@ -1,35 +1,16 @@
 'use strict';
 
+var Timescale = {
+    DAY: 'Day',
+    WEEK: 'Week',
+    YEAR: 'Year',
+    LIFETIME: 'Lifetime',
+    values: ['Day', 'Week', 'Year', 'Lifetime']
+};
+
 var Utils = {
     randomInt: function (low, high) {
         return Math.floor(Math.random() * (high - low)) + low;
-    },
-
-    createContext: function (selector, width, height) {
-        var margin = {
-            top: 40,
-            left: 40,
-            bottom: 20,
-            right: 20
-        };
-
-        var svg = d3.select(selector)
-            .append('svg')
-            .attr('width', width)
-            .attr('height', height);
-
-        var chart = svg.append('g')
-            .attr('transform', 'translate(' + margin.left + ' ' + margin.top + ')');
-
-        return {
-            svg: svg,
-            chart: chart,
-            size: {
-                width: width - margin.left - margin.right,
-                height: height - margin.top - margin.bottom
-            },
-            margin: margin
-        };
     },
 
     fadeOut: function (selection) {
@@ -137,22 +118,13 @@ var Utils = {
     },
 
     combineData: function (dayData, weekData, yearData, ageData) {
-        return {
-            day: Utils.extractData(dayData, Utils.dateFromMinute),
-            week: Utils.extractData(weekData, Utils.dateFromDayOfWeek),
-            year: Utils.extractData(yearData, Utils.dateFromDayOfYear),
-            age: Utils.extractData(ageData, function (i) { return i + 15; })
-
-        };
+        var result = {};
+        result[Timescale.DAY] = Utils.extractData(dayData, Utils.dateFromMinute);
+        result[Timescale.WEEK] = Utils.extractData(weekData, Utils.dateFromDayOfWeek);
+        result[Timescale.YEAR] = Utils.extractData(yearData, Utils.dateFromDayOfYear);
+        result[Timescale.LIFETIME] = Utils.extractData(ageData, function (i) { return i + 15; });
+        return result;
     }
-};
-
-var Timescale = {
-    DAY: 'Day',
-    WEEK: 'Week',
-    YEAR: 'Year',
-    LIFETIME: 'Lifetime',
-    values: ['Day', 'Week', 'Year', 'Lifetime']
 };
 
 var DotSlider = {
@@ -264,27 +236,34 @@ var AreaChart = {
         if (timescale) {
             var oldTimescale = this._timescale;
             this._timescale = timescale;
+
             if (this._element && oldTimescale !== timescale) {
                 this._x = this.generateX();
                 this._xAxis = this.generateXAxis();
+                var self = this;
+
                 if (oldTimescale !== Timescale.LIFETIME && timescale !== Timescale.LIFETIME) {
                     this._xSelection.transition()
-                        .duration(1000)
+                        .duration(500)
                         .call(this._xAxis);
                 } else {
-                    var self = this;
                     this._xSelection.transition()
-                        .duration(500)
                         .style('opacity', 0)
-                        .transition()
                         .on('end', function () {
                             self._xSelection
                                 .call(self._xAxis)
                                 .transition()
-                                .duration(500)
                                 .style('opacity', 1);
                         });
                 }
+
+                this._layerContainer.transition()
+                    .style('opacity', 0)
+                    .on('end', function () {
+                        self._layers = self.generateStackedLayers();
+                        self._layerContainer.transition()
+                            .style('opacity', 1);
+                    });
             }
             return this;
         } else {
@@ -307,6 +286,10 @@ var AreaChart = {
             this._innerSize = [this._size[0] - 50, this._size[1] - 20];
             this._chart = element.append('g')
                 .attr('transform', 'translate(40 0)');
+
+            // Add the layer container first so that the axes are always on top
+            this._layerContainer = this._chart.append('g');
+
             this._y = d3.scaleLinear()
                 .domain([0, 1])
                 .range([this._innerSize[1], 0]);
@@ -316,11 +299,29 @@ var AreaChart = {
                 });
             this._ySelection = this._chart.append('g')
                 .call(this._yAxis);
+    
             this._x = this.generateX();
             this._xAxis = this.generateXAxis();
             this._xSelection = this._chart.append('g')
                 .attr('transform', 'translate(0 ' + this._innerSize[1] + ')')
                 .call(this._xAxis);
+            
+            this._z = d3.scaleOrdinal(d3.schemeCategory20);
+
+            var self = this;
+
+            this._area = d3.area()
+                .x(function (d) { return self._x(d.data.date); })
+                .y0(function (d) { return self._y(d[0]); })
+                .y1(function (d) { return self._y(d[1]); });
+
+            this._singleArea = d3.area()
+                .x(function (d) { return self._x(d.data.date); })
+                .y0(function (d) { return self._y(0); })
+                .y1(function (d) { return self._y(d[1] - d[0]); });
+
+            this._layers = this.generateStackedLayers();
+
             return this;
         } else {
             return this._element;
@@ -364,6 +365,24 @@ var AreaChart = {
             case Timescale.LIFETIME:
                 return axis;
         }
+    },
+
+    generateStackedLayers: function () {
+        var self = this;
+        this._layerContainer.selectAll('.layer').remove();
+
+        var layer = this._layerContainer.selectAll('.layer')
+                .data(this._data[this._timescale].all)
+                .enter()
+                .append('g')
+                .attr('class', 'layer');
+
+        layer.append('path')
+            .attr('class', 'area')
+            .style('fill', function (d) { return self._z(d.key); })
+            .attr('d', this._area);
+
+        return layer;
     }
 };
 
