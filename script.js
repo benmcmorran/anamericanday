@@ -9,18 +9,6 @@ var Timescale = {
 };
 
 var Utils = {
-    randomInt: function (low, high) {
-        return Math.floor(Math.random() * (high - low)) + low;
-    },
-
-    fadeOut: function (selection) {
-        return selection.transition().duration(500).style('opacity', 0);
-    },
-
-    fadeIn: function (selection) {
-        return selection.transition().duration(500).style('opacity', 1);
-    },
-
     centerOfLargestArea: function (stack, threshold) {
         var bestStart, bestEnd, bestArea, bestMidpoint,
             inArea = false, newStart, newArea = 0, newMidpoint = 0;
@@ -67,6 +55,19 @@ var Utils = {
 
     dateFromDayOfYear: function (dayOfYear) {
         return d3.timeDay.offset(new Date(2001, 0, 1, 0), dayOfYear);
+    },
+
+    dateToIndex: function (timescale, time) {
+        switch (timescale) {
+            case Timescale.DAY:
+                return d3.timeMinute.count(new Date(2001, 6, 4, 4), time);
+            case Timescale.WEEK:
+                return d3.timeDay.count(new Date(2001, 6, 1, 0), time);
+            case Timescale.YEAR:
+                return d3.timeDay.count(new Date(2001, 0, 1, 0), time);
+            case Timescale.LIFETIME:
+                return Math.floor(time - 15);
+        }
     },
 
     extractData: function (data, timeMap) {
@@ -219,7 +220,7 @@ var DotSlider = {
 var AreaChart = {
     create: function () {
         var result = Object.create(AreaChart);
-        result._dispatch = d3.dispatch();
+        result._dispatch = d3.dispatch('cursorChanged', 'hoverActivityChanged');
         return result;
     },
 
@@ -320,12 +321,37 @@ var AreaChart = {
                 .y0(function (d) { return self._y(0); })
                 .y1(function (d) { return self._y(d[1] - d[0]); });
 
+            this._cursor = this._chart.append('line')
+                .attr('class', 'cursor')
+                .attr('y1', 0)
+                .attr('y2', this._innerSize[1]);
+
+            this._layerContainer
+                .on('mousemove', function () {
+                    var coords = d3.mouse(self._chart.node());
+                    self._cursor
+                        .attr('x1', coords[0])
+                        .attr('x2', coords[0])
+                        .style('display', 'inline');
+                    var value = self._x.invert(coords[0]);
+                    self._dispatch.call('cursorChanged', self, value);
+                })
+                .on('mouseout', function () {
+                    self._cursor.style('display', 'none');
+                    self._dispatch.call('cursorChanged', self, null);
+                    self._dispatch.call('hoverActivityChanged', self, null);
+                });
+
             this._layers = this.generateStackedLayers();
 
             return this;
         } else {
             return this._element;
         }
+    },
+
+    on: function (event, callback) {
+        return this._dispatch.on(event, callback);
     },
 
     generateX: function () {
@@ -382,6 +408,11 @@ var AreaChart = {
             .style('fill', function (d) { return self._z(d.key); })
             .attr('d', this._area);
 
+        layer
+            .on('mouseover', function (d) {
+                self._dispatch.call('hoverActivityChanged', self, d.key);
+            });
+
         return layer;
     }
 };
@@ -391,6 +422,39 @@ var HoverDetails = {
         var result = Object.create(HoverDetails);
         result.dispatch = d3.dispatch();
         return result;
+    },
+
+    timescale: function (timescale) {
+        if (timescale) {
+            this._timescale = timescale;
+            return this;
+        } else {
+            return this._timescale;
+        }
+    },
+
+    time: function (time) {
+        // Explicity check for undefined because a null time indicates
+        // that we are averaging across the time period
+        if (time !== undefined) {
+            this._time = time;
+            this._header.text(this.generateHeaderText());
+            this.updateBreakdown();
+            return this;
+        } else {
+            return this._time;
+        }
+    },
+
+    focusActivity: function (activity) {
+        // Explicity check for undefined, null indicates no focus
+        if (activity !== undefined) {
+            this._focusActivity = activity;
+            this.updateBreakdown();
+            return this;
+        } else {
+            return this._focusActivity;
+        }
     },
 
     data: function (data) {
@@ -414,14 +478,89 @@ var HoverDetails = {
     element: function (element) {
         if (element) {
             this._element = element;
-            element.append('rect')
-                .attr('width', this._size[0])
-                .attr('height', this._size[1])
-                .attr('fill', 'green');
+            element.attr('class', 'details')
+                // .append('rect')
+                // .attr('width', this._size[0])
+                // .attr('height', this._size[1])
+                // .attr('fill', 'green');
+            this._header = element.append('text')
+                .attr('class', 'header')
+                .attr('dy', '1em')
+                .text(this.generateHeaderText());
+
+            this._breakdownContainer = element.append('g')
+                .attr('class', 'breakdown')
+                .attr('transform', 'translate(0 40)');
+            
+            this.updateBreakdown();
+
             return this;
         } else {
             return this._element;
         }
+    },
+
+    generateHeaderText: function () {
+        if (!this._time) {
+            return "On an average day";
+        }
+
+        switch (this._timescale) {
+            case Timescale.DAY:
+                return 'At ' + d3.timeFormat('%I:%M %p')(this._time);
+            case Timescale.WEEK:
+                return 'On ' + d3.timeFormat('%A')(this._time);
+            case Timescale.YEAR:
+                return 'On ' + d3.timeFormat('%B %e')(this._time);
+            case Timescale.LIFETIME:
+                return 'At ' + Math.floor(this._time) + ' years old';
+        }
+    },
+
+    updateBreakdown: function () {
+        var self = this;
+        this._breakdownContainer.selectAll('.measure').remove();
+
+        var inputData = this._data[this._timescale].all;
+        if (!self._time) {
+            inputData = this._data[Timescale.DAY].all;
+        }
+
+        var data = inputData.map(function (d) {
+            var value;
+            if (!self._time) {
+                value = d3.sum(d, function (e) { return e[1] - e[0]; });
+                value /= 1440;
+            } else {
+                var index = Utils.dateToIndex(self._timescale, self._time);
+                value = d[index][1] - d[index][0];
+            }
+
+            return {
+                value: value,
+                description: d.key 
+            }
+        });
+        data = data.sort(function (a, b) {
+            return b.value - a.value;
+        });
+
+        var measures = this._breakdownContainer.selectAll('.measure')
+            .data(data);
+        var newMeasures = measures.enter()
+            .append('g')
+            .attr('class', function (d) {
+                return 'measure' + ((self._focusActivity === d.description) ? ' focused' : '');
+            })
+            .attr('transform', function (d, i) { return 'translate(0 ' + (i * 15) + ')' });
+        newMeasures.append('text')
+            .attr('class', 'value')
+            .attr('x', 30)
+            .text(function (d) { return d3.format('.1%')(d.value); });
+        newMeasures.append('text')
+            .attr('class', 'description')
+            .attr('x', 40)
+            .text(function (d) { return d.description; });
     }
 };
 
@@ -448,7 +587,9 @@ function handleData (svg) {
                     .attr('transform', 'translate(0 50)')
             );
 
-        HoverDetails.create()
+        var details = HoverDetails.create()
+            .data(data)
+            .timescale(Timescale.DAY)
             .size(250, 450)
             .element(
                 svg.append('g')
@@ -457,7 +598,16 @@ function handleData (svg) {
 
         slider.on('change', function (d) {
             area.timescale(d);
+            details.timescale(d);
         });
+
+        area
+            .on('cursorChanged', function (value) {
+                details.time(value);
+            })
+            .on('hoverActivityChanged', function (activity) {
+                details.focusActivity(activity);
+            });
     }
 }
 

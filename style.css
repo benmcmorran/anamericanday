@@ -69,3 +69,24 @@ svg text {
     fill: black;
     pointer-events: none;
 }
+
+.cursor {
+    stroke: white;
+    stroke-width: 1px;
+    display: none;
+    pointer-events: none;
+}
+
+.details text.header {
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.details .focused {
+    font-weight: bold;
+    fill: #C00;
+}
+
+.details .measure .value {
+    text-anchor: end;
+}
