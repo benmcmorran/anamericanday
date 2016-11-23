@@ -147,47 +147,55 @@ var Utils = {
     }
 };
 
+var Timescale = {
+    DAY: 'Day',
+    WEEK: 'Week',
+    YEAR: 'Year',
+    LIFETIME: 'Lifetime',
+    values: ['Day', 'Week', 'Year', 'Lifetime']
+};
+
 var DotSlider = {
     create: function () {
         var result = Object.create(DotSlider);
-        result.dispatch = d3.dispatch('change');
+        result._dispatch = d3.dispatch('change');
         return result;
+    },
+
+    domain: function (domain) {
+        if (domain) {
+            this._domain = domain;
+            return this;
+        } else {
+            return this._domain;
+        }
     },
 
     size: function (width, height) {
         if (width && height) {
-            this.size = [width, height];
+            this._size = [width, height];
             return this;
         } else {
-            return this.size;
+            return this._size;
         }
     },
 
-    domain: function (values) {
-        if (values) {
-            this.values = values;
-            return this;
-        } else {
-            return this.values;
-        }
-    },
+    element: function (element) {
+        if (element) {
+            this._element = element;
+            var padding = this._size[0] / this._domain.length,
+                halfHeight = this._size[1] / 2;
 
-    element: function (selection) {
-        if (selection) {
-            this.selection = selection;
-            var padding = this.size[0] / this.values.length,
-                halfHeight = this.size[1] / 2;
-
-            selection.attr('class', 'dotslider')
+            element.attr('class', 'dotslider')
                 .append('line')
                 .attr('class', 'axis')
                 .attr('x1', 0)
-                .attr('x2', this.size[0])
+                .attr('x2', this._size[0])
                 .attr('y1', halfHeight)
                 .attr('y2', halfHeight);
 
-            var stops = selection.selectAll('.stop')
-                .data(this.values)
+            var stops = element.selectAll('.stop')
+                .data(this._domain)
                 .enter()
                 .append('g')
                 .attr('class', 'stop')
@@ -213,7 +221,7 @@ var DotSlider = {
                 .attr('y', -10)
                 .text(function (d) { return d; });
 
-            var mark = selection.append('circle')
+            var mark = element.append('circle')
                 .attr('class', 'mark')
                 .attr('cx', padding / 2)
                 .attr('cy', halfHeight)
@@ -223,18 +231,230 @@ var DotSlider = {
             stops.on('click', function (d, i) {
                 mark.transition()
                     .attr('cx', padding * (i + 1 / 2));
-                self.dispatch.call('change', this, d, i);
+                self._dispatch.call('change', this, d, i);
             });
             return this;
         } else {
-            return this.selection;
+            return this._element;
         }
     },
 
     on: function (event, callback) {
-        return this.dispatch.on(event, callback);
+        return this._dispatch.on(event, callback);
     }
 };
+
+var AreaChart = {
+    create: function () {
+        var result = Object.create(AreaChart);
+        result._dispatch = d3.dispatch();
+        return result;
+    },
+
+    data: function (data) {
+        if (data) {
+            this._data = data;
+            return this;
+        } else {
+            return this._data;
+        }
+    },
+
+    timescale: function (timescale) {
+        if (timescale) {
+            var oldTimescale = this._timescale;
+            this._timescale = timescale;
+            if (this._element && oldTimescale !== timescale) {
+                this._x = this.generateX();
+                this._xAxis = this.generateXAxis();
+                if (oldTimescale !== Timescale.LIFETIME && timescale !== Timescale.LIFETIME) {
+                    this._xSelection.transition()
+                        .duration(1000)
+                        .call(this._xAxis);
+                } else {
+                    var self = this;
+                    this._xSelection.transition()
+                        .duration(500)
+                        .style('opacity', 0)
+                        .transition()
+                        .on('end', function () {
+                            self._xSelection
+                                .call(self._xAxis)
+                                .transition()
+                                .duration(500)
+                                .style('opacity', 1);
+                        });
+                }
+            }
+            return this;
+        } else {
+            return this._timescale;
+        }
+    },
+
+    size: function (width, height) {
+        if (width && height) {
+            this._size = [width, height];
+            return this;
+        } else {
+            return this._size;
+        }
+    },
+
+    element: function (element) {
+        if (element) {
+            this._element = element;
+            this._innerSize = [this._size[0] - 50, this._size[1] - 20];
+            this._chart = element.append('g')
+                .attr('transform', 'translate(40 0)');
+            this._y = d3.scaleLinear()
+                .domain([0, 1])
+                .range([this._innerSize[1], 0]);
+            this._yAxis = d3.axisLeft(this._y)
+                .tickFormat(function (d) {
+                    return Math.abs(Math.floor(d * 100) - d * 100) < .001 ? d3.format('.0%')(d) : d3.format('.1%')(d);
+                });
+            this._ySelection = this._chart.append('g')
+                .call(this._yAxis);
+            this._x = this.generateX();
+            this._xAxis = this.generateXAxis();
+            this._xSelection = this._chart.append('g')
+                .attr('transform', 'translate(0 ' + this._innerSize[1] + ')')
+                .call(this._xAxis);
+            return this;
+        } else {
+            return this._element;
+        }
+    },
+
+    generateX: function () {
+        var result;
+        switch (this._timescale) {
+            case Timescale.DAY:
+                result = d3.scaleTime()
+                    .domain([new Date(2001, 6, 4, 4), new Date(2001, 6, 5, 4)]);
+                break;
+            case Timescale.WEEK:
+                result = d3.scaleTime()
+                    .domain([new Date(2001, 6, 1, 0), new Date(2001, 6, 7, 0)]);
+                break;
+            case Timescale.YEAR:
+                result = d3.scaleTime()
+                    .domain([new Date(2001, 0, 1, 0), new Date(2001, 11, 31)]);
+                break;
+            case Timescale.LIFETIME:
+                result = d3.scaleLinear().domain([15, 80]);
+                break;
+        }
+        return result.range([0, this._innerSize[0]]);
+    },
+
+    generateXAxis: function () {
+        var axis = d3.axisBottom(this._x);
+        switch (this._timescale) {
+            case Timescale.DAY:
+                return axis.tickFormat(d3.timeFormat('%I %p'))
+                    .ticks(d3.timeHour.every(2));
+            case Timescale.WEEK:
+                return axis.tickFormat(d3.timeFormat('%a'))
+                    .ticks(d3.timeDay.every(1));
+            case Timescale.YEAR:
+                return axis.tickFormat(d3.timeFormat('%B'))
+                    .ticks(d3.timeMonth.every(1));
+            case Timescale.LIFETIME:
+                return axis;
+        }
+    }
+};
+
+var HoverDetails = {
+    create: function () {
+        var result = Object.create(HoverDetails);
+        result.dispatch = d3.dispatch();
+        return result;
+    },
+
+    data: function (data) {
+        if (data) {
+            this._data = data;
+            return this;
+        } else {
+            return this._data;
+        }
+    },
+
+    size: function (width, height) {
+        if (width && height) {
+            this._size = [width, height];
+            return this;
+        } else {
+            return this._size;
+        }
+    },
+
+    element: function (element) {
+        if (element) {
+            this._element = element;
+            element.append('rect')
+                .attr('width', this._size[0])
+                .attr('height', this._size[1])
+                .attr('fill', 'green');
+            return this;
+        } else {
+            return this._element;
+        }
+    }
+};
+
+function handleData (svg) {
+    return function (error, dayData, weekData, yearData, ageData) {
+        if (error) {
+            console.error(error);
+            return;
+        }
+
+        var data = Utils.combineData(dayData, weekData, yearData, ageData);
+
+        var slider = DotSlider.create()
+            .domain(Timescale.values)
+            .size(960, 50)
+            .element(svg.append('g'));
+
+        var area = AreaChart.create()
+            .data(data)
+            .timescale(Timescale.DAY)
+            .size(700, 450)
+            .element(
+                svg.append('g')
+                    .attr('transform', 'translate(0 50)')
+            );
+
+        HoverDetails.create()
+            .size(250, 450)
+            .element(
+                svg.append('g')
+                    .attr('transform', 'translate(710 50)')
+            );
+
+        slider.on('change', function (d) {
+            area.timescale(d);
+        });
+    }
+}
+
+function run () {
+    var svg = d3.select('#canvas')
+        .append('svg')
+        .attr('width', 960)
+        .attr('height', 500);
+
+    d3.queue()
+        .defer(d3.csv, 'day.csv')
+        .defer(d3.csv, 'week.csv')
+        .defer(d3.csv, 'year.csv')
+        .defer(d3.csv, 'age.csv')
+        .await(handleData(svg));
+}
 
 var State = {
     selectedActivity: undefined,
@@ -292,7 +512,7 @@ var Chart = {
     }
 }
 
-function run() {
+function run2() {
     var context = Utils.createContext('#content', 960, 500);
     
     var y = d3.scaleLinear()
@@ -331,7 +551,7 @@ function run() {
             Chart.initializeAxes(context);
             context.chart.append('g').attr('class', 'layer');
 
-                var slider = DotSlider.create()
+            var slider = DotSlider.create()
                 .domain(['Day', 'Week', 'Year', 'Lifetime'])
                 .size(960, 50)
                 .element(context.svg.append('g'))
