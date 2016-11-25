@@ -103,3 +103,9 @@ svg text {
 .areachart .layer {
     cursor: pointer;
 }
+
+.areachart .layer text {
+    text-anchor: middle;
+    pointer-events: none;
+    fill: white;
+}

@@ -9,40 +9,26 @@ var Timescale = {
 };
 
 var Utils = {
-    centerOfLargestArea: function (stack, threshold) {
-        var bestStart, bestEnd, bestArea, bestMidpoint,
-            inArea = false, newStart, newArea = 0, newMidpoint = 0;
-        
+    placeLabel: function (stack, x, y) {
+        var passesTheshold = false;
         for (var i = 0; i < stack.length; i++) {
-            var distance = stack[i][1] - stack[i][0];
-            
-            if (!inArea && distance > threshold) {
-                newStart = i;
-                inArea = true;
-            } else if (inArea && (distance <= threshold || i == stack.length - 1)) {
-                if (bestStart === undefined || newArea > bestArea) {
-                    bestStart = newStart;
-                    bestEnd = i;
-                    bestArea = newArea;
-                    bestMidpoint = Math.floor(newMidpoint / newArea);
-
-                    newArea = newMidpoint = 0;
-                }
-                inArea = false;
-            }
-
-            if (inArea) {
-                newArea += distance;
-                newMidpoint += i * distance;
+            if (y(stack[i][0]) - y(stack[i][1]) > 20) {
+                passesTheshold = true;
+                break;
             }
         }
-
-        if (bestStart !== undefined) {
-            return {
-                x: bestMidpoint,
-                y: (stack[bestMidpoint][0] + stack[bestMidpoint][1]) / 2
-            };
+        if (!passesTheshold) {
+            return null;
         }
+
+        var coordinates = [];
+        for (var i = 0; i < stack.length; i++) {
+            coordinates.push([x(i), y(stack[i][1])]);
+        }
+        for (var i = stack.length - 1; i >= 0; i--) {
+            coordinates.push([x(i), y(stack[i][0])]);
+        }
+        return polylabel([coordinates], 1.0, true);
     },
 
     dateFromMinute: function (minute) {
@@ -125,6 +111,44 @@ var Utils = {
         result[Timescale.YEAR] = Utils.extractData(yearData, Utils.dateFromDayOfYear);
         result[Timescale.LIFETIME] = Utils.extractData(ageData, function (i) { return i + 15; });
         return result;
+    },
+
+    generateTimeScale: function (timescale) {
+        var result;
+        switch (timescale) {
+            case Timescale.DAY:
+                result = d3.scaleTime()
+                    .domain([new Date(2001, 6, 4, 4), new Date(2001, 6, 5, 4)]);
+                break;
+            case Timescale.WEEK:
+                result = d3.scaleTime()
+                    .domain([new Date(2001, 6, 1, 0), new Date(2001, 6, 7, 0)]);
+                break;
+            case Timescale.YEAR:
+                result = d3.scaleTime()
+                    .domain([new Date(2001, 0, 1, 0), new Date(2001, 11, 31)]);
+                break;
+            case Timescale.LIFETIME:
+                result = d3.scaleLinear().domain([15, 80]);
+                break;
+        }
+        return result;
+    },
+
+    configureTimeAxis: function (timescale, axis) {
+        switch (timescale) {
+            case Timescale.DAY:
+                return axis.tickFormat(d3.timeFormat('%I %p'))
+                    .ticks(d3.timeHour.every(2));
+            case Timescale.WEEK:
+                return axis.tickFormat(d3.timeFormat('%a'))
+                    .ticks(d3.timeDay.every(1));
+            case Timescale.YEAR:
+                return axis.tickFormat(d3.timeFormat('%B'))
+                    .ticks(d3.timeMonth.every(1));
+            case Timescale.LIFETIME:
+                return axis;
+        }
     }
 };
 
@@ -346,16 +370,22 @@ var AreaChart = {
                         .duration(1000)
                         .attr('d', this._area);
                 } else {
-                    this.normalizeYAxis(this._data[this._timescale][demographic].filter(function (d) {
-                        return d.key === self._selectedActivity;
-                    })[0]);
                     newLayers.filter(function (d) {
                            return d.key === self._selectedActivity;
                         })
                         .select('.area')
                         .transition()
                         .duration(1000)
-                        .attr('d', this._singleArea);
+                        .attr('d', this._singleArea)
+                        .on('end', function () {
+                            self.normalizeYAxis(self._data[self._timescale][demographic].filter(function (d) {
+                                return d.key === self._selectedActivity;
+                            })[0]);
+                            d3.select(this)
+                                .transition()
+                                .duration(1000)
+                                .attr('d', self._singleArea);
+                        });
 
                     // Temporarily change the domain so that the other activities are in
                     // the right place when they fade back in
@@ -383,6 +413,10 @@ var AreaChart = {
         } else {
             return this._size;
         }
+    },
+
+    z: function () {
+        return this._z;
     },
 
     element: function (element) {
@@ -460,42 +494,13 @@ var AreaChart = {
     },
 
     generateX: function () {
-        var result;
-        switch (this._timescale) {
-            case Timescale.DAY:
-                result = d3.scaleTime()
-                    .domain([new Date(2001, 6, 4, 4), new Date(2001, 6, 5, 4)]);
-                break;
-            case Timescale.WEEK:
-                result = d3.scaleTime()
-                    .domain([new Date(2001, 6, 1, 0), new Date(2001, 6, 7, 0)]);
-                break;
-            case Timescale.YEAR:
-                result = d3.scaleTime()
-                    .domain([new Date(2001, 0, 1, 0), new Date(2001, 11, 31)]);
-                break;
-            case Timescale.LIFETIME:
-                result = d3.scaleLinear().domain([15, 80]);
-                break;
-        }
-        return result.range([0, this._innerSize[0]]);
+        return Utils.generateTimeScale(this._timescale)
+            .range([0, this._innerSize[0]]);
     },
 
     generateXAxis: function () {
         var axis = d3.axisBottom(this._x);
-        switch (this._timescale) {
-            case Timescale.DAY:
-                return axis.tickFormat(d3.timeFormat('%I %p'))
-                    .ticks(d3.timeHour.every(2));
-            case Timescale.WEEK:
-                return axis.tickFormat(d3.timeFormat('%a'))
-                    .ticks(d3.timeDay.every(1));
-            case Timescale.YEAR:
-                return axis.tickFormat(d3.timeFormat('%B'))
-                    .ticks(d3.timeMonth.every(1));
-            case Timescale.LIFETIME:
-                return axis;
-        }
+        return Utils.configureTimeAxis(this._timescale, axis);
     },
 
     generateStackedLayers: function () {
@@ -512,6 +517,16 @@ var AreaChart = {
             .attr('class', 'area')
             .style('fill', function (d) { return self._z(d.key); })
             .attr('d', this._area);
+
+        // layer.filter(function (d) {
+        //         d.center = Utils.placeLabel(d, function (i) { return self._x(Utils.dateFromMinute(i)); }, self._y);
+        //         return d.center;
+        //     })
+        //     .append('text')
+        //     .attr('x', function (d) { return d.center[0]; })
+        //     .attr('y', function (d) { return d.center[1]; })
+        //     .attr('dy', '.35em')
+        //     .text(function (d) { return d.key; });
 
         layer
             .on('mouseover', function (d) {
@@ -783,6 +798,29 @@ var DemographicView = {
         }
     },
 
+    colorScale: function (colorScale) {
+        if (colorScale) {
+            this._colorScale = colorScale;
+            return this;
+        } else {
+            return this._colorScale;
+        }
+    },
+
+    activity: function (activity) {
+        if (activity !== undefined) {
+            this._activity = activity;
+            if (activity) {
+                this.generateActivityBars();
+            } else {
+                this.generateDiaryLines();
+            }
+            return this;
+        } else {
+            return this._activity;
+        }
+    },
+
     element: function (element) {
         if (element) {
             this._element = element;
@@ -801,11 +839,18 @@ var DemographicView = {
                 .enter()
                 .append('g')
                 .attr('class', 'demographic')
-                .attr('transform', function (d, i) { return 'translate(0 ' + (40 + i * 15) + ')'; });
+                .attr('transform', function (d, i) { return 'translate(0 ' + (30 + i * 15) + ')'; });
             this._demographics.append('text')
                 .attr('x', 100)
+                .attr('dy', '.85em')
                 .text(function (d) { return d; })
                 .call(this.highlightSelectedDemographic(this));
+            this._xSelection = this._element.append('g')
+                .attr('transform', 'translate(110 240)');
+            this._diaries = this._demographics.append('g')
+                .attr('class', 'diary')
+                .attr('transform', 'translate(110 0)');
+            this.generateDiaryLines();
             this._demographics
                 .on('click', function (d) {
                     self._dispatch.call('demographicChanged', self, d);
@@ -822,6 +867,87 @@ var DemographicView = {
                 return 'name' + (self._demographic === d ? ' selected' : '');
             });
         }
+    },
+
+    generateDiaryLines: function () {
+        var self = this;
+
+        this._x = Utils.generateTimeScale(Timescale.DAY)
+                .range([0, this._size[0] - 110]);
+        this._xAxis = Utils.configureTimeAxis(Timescale.DAY, d3.axisBottom(this._x));
+        this._xSelection.call(this._xAxis);
+
+        this._diaries.selectAll('.diaryElement').remove();
+        this._diaries.selectAll('.diaryElement')
+            .data(function (d) {
+                var result = [];
+                var stacks = self._data[self._timescale][d];
+                
+                for (var i = 0; i < stacks[0].length; i++) {
+                    var maxActivity;
+                    var maxPercent = 0;
+                    for (var j = 0; j < stacks.length; j++) {
+                        var percent = stacks[j][i][1] - stacks[j][i][0];
+                        if (percent > maxPercent) {
+                            maxPercent = percent;
+                            maxActivity = stacks[j].key;
+                        }
+                    }
+
+                    if (result.length === 0 || result[result.length - 1].activity !== maxActivity) {
+                        if (result.length > 0) {
+                            result[result.length - 1].end = Utils.dateFromMinute(i);
+                        }
+                        result.push({
+                            activity: maxActivity,
+                            start: Utils.dateFromMinute(i)
+                        });
+                    }
+                }
+
+                result[result.length - 1].end = Utils.dateFromMinute(1440);
+                return result;
+            })
+            .enter()
+            .append('rect')
+            .attr('class', 'diaryElement')
+            .attr('x', function (d) { return self._x(d.start); })
+            .attr('width', function (d) { return self._x(d.end) - self._x(d.start); })
+            .attr('height', 10)
+            .style('fill', function (d) { return self._colorScale(d.activity); });
+    },
+
+    generateActivityBars: function () {
+        var self = this;
+
+        this._x = d3.scaleLinear()
+            .domain([0, 24])
+            .range([0, this._size[0] - 110]);
+        this._xAxis = d3.axisBottom(this._x);
+        this._xSelection.call(this._xAxis);
+
+        this._diaries.selectAll('.diaryElement').remove();
+        this._diaries.append('rect')
+            .attr('class', 'diaryElement')
+            .attr('height', 10)
+            .attr('width', function (d) {
+                var index;
+                var data = self._data[self._timescale][d];
+                data.forEach(function (d, i) {
+                    if (d.key === self._activity) {
+                        index = i;
+                    }
+                });
+
+                var total = 0;
+                for (var i = 0; i < data[index].length; i++) {
+                    total += data[index][i][1] - data[index][i][0];
+                }
+                total /= data[index].length;
+                total *= 24;
+
+                return self._x(total);
+            });
     },
 
     on: function (event, callback) {
@@ -868,6 +994,7 @@ function handleData (svg) {
             .timescale(Timescale.DAY)
             .demographic('all')
             .size(700, 290)
+            .colorScale(area.z())
             .element(
                 svg.append('g')
                     .attr('transform', 'translate(0 510)')
@@ -888,8 +1015,10 @@ function handleData (svg) {
             .on('activityClicked', function (activity) {
                 if (area.selectedActivity()) {
                     area.selectedActivity(null);
+                    demographics.activity(null);
                 } else {
                     area.selectedActivity(activity);
+                    demographics.activity(activity);
                 }
             });
 
@@ -905,7 +1034,7 @@ function run () {
     var svg = d3.select('#canvas')
         .append('svg')
         .attr('width', 960 + 30)
-        .attr('height', 800);
+        .attr('height', 770);
 
     d3.queue()
         .defer(d3.csv, 'day.csv')
