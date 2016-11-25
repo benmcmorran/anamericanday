@@ -90,3 +90,7 @@ svg text {
 .details .measure .value {
     text-anchor: end;
 }
+
+.areachart .layer {
+    cursor: pointer;
+}

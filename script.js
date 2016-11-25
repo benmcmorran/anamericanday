@@ -220,7 +220,7 @@ var DotSlider = {
 var AreaChart = {
     create: function () {
         var result = Object.create(AreaChart);
-        result._dispatch = d3.dispatch('cursorChanged', 'hoverActivityChanged');
+        result._dispatch = d3.dispatch('cursorChanged', 'hoverActivityChanged', 'activityClicked');
         return result;
     },
 
@@ -239,6 +239,10 @@ var AreaChart = {
             this._timescale = timescale;
 
             if (this._element && oldTimescale !== timescale) {
+                if (this._selectedActivity) {
+                    this.resetYAxis();
+                    this._selectedActivity = null;
+                }
                 this._x = this.generateX();
                 this._xAxis = this.generateXAxis();
                 var self = this;
@@ -272,6 +276,73 @@ var AreaChart = {
         }
     },
 
+    selectedActivity: function (activity) {
+        if (activity !== undefined) {
+            var self = this;
+            if (!activity) {
+                this._y.domain([0, 1]);
+                this._ySelection
+                    .transition()
+                    .duration(1000)
+                    .call(this._yAxis);
+                this._layers.filter(function (d) {
+                        return d.key === self._selectedActivity;
+                    })
+                    .select('.area')
+                    .transition()
+                    .duration(1000)
+                    .attr('d', this._singleArea)
+                    .transition()
+                    .duration(1000)
+                    .attr('d', this._area);
+                this._layers.filter(function (d) {
+                        return d.key !== self._selectedActivity;
+                    })
+                    .transition()
+                    .delay(1800)
+                    .duration(500)
+                    .style('opacity', 1)
+                    .style('pointer-events', 'visiblePainted');
+            } else if (this._selectedActivity !== activity) {
+                this._layers.filter(function (d) {
+                        return d.key !== activity;
+                    })
+                    .style('pointer-events', 'none')
+                    .transition()
+                    .duration(500)
+                    .style('opacity', 0);
+                this._layers.filter(function (d) {
+                        return d.key === activity;
+                    })
+                    .select('.area')
+                    .transition()
+                    .delay(300)
+                    .duration(1000)
+                    .attr('d', this._singleArea)
+                    .on('end', function () {
+                        self._y.domain([0, d3.max(
+                            d3.select(this).data()[0],
+                            function (d) {
+                                return d[1] - d[0];
+                            }
+                        )]);
+                        self._ySelection
+                            .transition()
+                            .duration(1000)
+                            .call(self._yAxis);
+                        d3.select(this)
+                            .transition()
+                            .duration(1000)
+                            .attr('d', self._singleArea);
+                    });
+            }
+            this._selectedActivity = activity;
+            return this;
+        } else {
+            return this._selectedActivity;
+        }
+    },
+
     size: function (width, height) {
         if (width && height) {
             this._size = [width, height];
@@ -286,7 +357,8 @@ var AreaChart = {
             this._element = element;
             this._innerSize = [this._size[0] - 50, this._size[1] - 20];
             this._chart = element.append('g')
-                .attr('transform', 'translate(40 0)');
+                .attr('transform', 'translate(40 0)')
+                .attr('class', 'areachart');
 
             // Add the layer container first so that the axes are always on top
             this._layerContainer = this._chart.append('g');
@@ -411,16 +483,26 @@ var AreaChart = {
         layer
             .on('mouseover', function (d) {
                 self._dispatch.call('hoverActivityChanged', self, d.key);
+            })
+            .on('click', function (d) {
+                self._dispatch.call('activityClicked', self, d.key);
             });
 
         return layer;
+    },
+
+    resetYAxis: function () {
+        this._y.domain([0, 1]);
+        this._ySelection.transition()
+            .duration(500)
+            .call(this._yAxis);
     }
 };
 
 var HoverDetails = {
     create: function () {
         var result = Object.create(HoverDetails);
-        result.dispatch = d3.dispatch();
+        result._dispatch = d3.dispatch();
         return result;
     },
 
@@ -564,6 +646,66 @@ var HoverDetails = {
     }
 };
 
+var DemographicView = {
+    create: function () {
+        var result = Object.create(DemographicView);
+        result._dispatch = d3.dispatch();
+        return result;
+    },
+
+    timescale: function (timescale) {
+        if (timescale) {
+            this._timescale = timescale;
+            return this;
+        } else {
+            return this._timescale;
+        }
+    },
+
+    time: function (time) {
+        // Explicity check for undefined because a null time indicates
+        // that we are averaging across the time period
+        if (time !== undefined) {
+            this._time = time;
+            return this;
+        } else {
+            return this._time;
+        }
+    },
+
+    data: function (data) {
+        if (data) {
+            this._data = data;
+            return this;
+        } else {
+            return this._data;
+        }
+    },
+
+    size: function (width, height) {
+        if (width && height) {
+            this._size = [width, height];
+            return this;
+        } else {
+            return this._size;
+        }
+    },
+
+    element: function (element) {
+        if (element) {
+            this._element = element;
+            element.attr('class', 'details')
+                .append('rect')
+                .attr('width', this._size[0])
+                .attr('height', this._size[1])
+                .attr('fill', 'green');
+            return this;
+        } else {
+            return this._element;
+        }
+    }
+};
+
 function handleData (svg) {
     return function (error, dayData, weekData, yearData, ageData) {
         if (error) {
@@ -596,6 +738,15 @@ function handleData (svg) {
                     .attr('transform', 'translate(710 50)')
             );
 
+        var demographics = DemographicView.create()
+            .data(data)
+            .timescale(Timescale.DAY)
+            .size(700, 290)
+            .element(
+                svg.append('g')
+                    .attr('transform', 'translate(0 510)')
+            );
+
         slider.on('change', function (d) {
             area.timescale(d);
             details.timescale(d);
@@ -607,6 +758,13 @@ function handleData (svg) {
             })
             .on('hoverActivityChanged', function (activity) {
                 details.focusActivity(activity);
+            })
+            .on('activityClicked', function (activity) {
+                if (area.selectedActivity()) {
+                    area.selectedActivity(null);
+                } else {
+                    area.selectedActivity(activity);
+                }
             });
     }
 }
@@ -615,7 +773,7 @@ function run () {
     var svg = d3.select('#canvas')
         .append('svg')
         .attr('width', 960)
-        .attr('height', 500);
+        .attr('height', 800);
 
     d3.queue()
         .defer(d3.csv, 'day.csv')
