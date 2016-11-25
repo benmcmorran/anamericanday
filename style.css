@@ -77,7 +77,7 @@ svg text {
     pointer-events: none;
 }
 
-.details text.header {
+.details text.header, .demographics text.header {
     font-size: 16px;
     font-weight: bold;
 }
@@ -87,8 +87,17 @@ svg text {
     fill: #C00;
 }
 
-.details .measure .value {
+.details .measure .value, .demographics .demographic .name {
     text-anchor: end;
+}
+
+.demographics .demographic {
+    cursor: pointer;
+}
+
+.demographics .name.selected {
+    font-weight: bold;
+    fill: #C00;
 }
 
 .areachart .layer {

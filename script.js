@@ -320,16 +320,7 @@ var AreaChart = {
                     .duration(1000)
                     .attr('d', this._singleArea)
                     .on('end', function () {
-                        self._y.domain([0, d3.max(
-                            d3.select(this).data()[0],
-                            function (d) {
-                                return d[1] - d[0];
-                            }
-                        )]);
-                        self._ySelection
-                            .transition()
-                            .duration(1000)
-                            .call(self._yAxis);
+                        self.normalizeYAxis(d3.select(this).data()[0]);
                         d3.select(this)
                             .transition()
                             .duration(1000)
@@ -340,6 +331,48 @@ var AreaChart = {
             return this;
         } else {
             return this._selectedActivity;
+        }
+    },
+
+    demographic: function (demographic) {
+        if (demographic) {
+            if (this._element && demographic !== this._demographic) {
+                var self = this;
+                var newLayers = this._layers.data(this._data[this._timescale][demographic]);
+                if (!this._selectedActivity) {
+                    newLayers
+                        .select('.area')
+                        .transition()
+                        .duration(1000)
+                        .attr('d', this._area);
+                } else {
+                    this.normalizeYAxis(this._data[this._timescale][demographic].filter(function (d) {
+                        return d.key === self._selectedActivity;
+                    })[0]);
+                    newLayers.filter(function (d) {
+                           return d.key === self._selectedActivity;
+                        })
+                        .select('.area')
+                        .transition()
+                        .duration(1000)
+                        .attr('d', this._singleArea);
+
+                    // Temporarily change the domain so that the other activities are in
+                    // the right place when they fade back in
+                    var oldDomain = this._y.domain();
+                    this._y.domain([0, 1]);
+                    newLayers.filter(function (d) {
+                            return d.key !== self._selectedActivity;
+                        })
+                        .select('.area')
+                        .attr('d', this._area);
+                    this._y.domain(oldDomain);
+                }
+            }
+            this._demographic = demographic;
+            return this;
+        } else {
+            return this._demographic;
         }
     },
 
@@ -470,7 +503,7 @@ var AreaChart = {
         this._layerContainer.selectAll('.layer').remove();
 
         var layer = this._layerContainer.selectAll('.layer')
-                .data(this._data[this._timescale].all)
+                .data(this._data[this._timescale][this._demographic])
                 .enter()
                 .append('g')
                 .attr('class', 'layer');
@@ -495,6 +528,19 @@ var AreaChart = {
         this._y.domain([0, 1]);
         this._ySelection.transition()
             .duration(500)
+            .call(this._yAxis);
+    },
+
+    normalizeYAxis: function (data) {
+        this._y.domain([0, d3.max(
+            data,
+            function (d) {
+                return d[1] - d[0];
+            }
+        )]);
+        this._ySelection
+            .transition()
+            .duration(1000)
             .call(this._yAxis);
     }
 };
@@ -525,6 +571,19 @@ var HoverDetails = {
             return this;
         } else {
             return this._time;
+        }
+    },
+
+    demographic: function (demographic) {
+        if (demographic) {
+            this._demographic = demographic;
+            if (this._element) {
+                this._demographicHeader.text(this.generateDemographicText());
+                this.updateBreakdown();
+            }
+            return this;
+        } else {
+            return this._demographic;
         }
     },
 
@@ -560,19 +619,20 @@ var HoverDetails = {
     element: function (element) {
         if (element) {
             this._element = element;
-            element.attr('class', 'details')
-                // .append('rect')
-                // .attr('width', this._size[0])
-                // .attr('height', this._size[1])
-                // .attr('fill', 'green');
+            element.attr('class', 'details');
             this._header = element.append('text')
                 .attr('class', 'header')
                 .attr('dy', '1em')
                 .text(this.generateHeaderText());
+            this._demographicHeader = element.append('text')
+                .attr('class', 'header')
+                .attr('dy', '1em')
+                .attr('y', 20)
+                .text(this.generateDemographicText());
 
             this._breakdownContainer = element.append('g')
                 .attr('class', 'breakdown')
-                .attr('transform', 'translate(0 40)');
+                .attr('transform', 'translate(0 60)');
             
             this.updateBreakdown();
 
@@ -599,13 +659,32 @@ var HoverDetails = {
         }
     },
 
+    generateDemographicText: function () {
+        return {
+            all: 'for an average American',
+            male: 'for a male American',
+            female: 'for a female American',
+            'age_15-24': 'for an American aged 15-24',
+            'age_25-64': 'for an American aged 25-64',
+            'age_65-more': 'for an American aged 65+',
+            white: 'for a white American',
+            black: 'for a black American',
+            hispanic: 'for a Hispanic American',
+            employed: 'for an employed American',
+            unemployed: 'for an unemployed American',
+            'income_less-50': 'for an American making $0-$50k',
+            'income_50-100': 'for an American making $50k-$100k',
+            'income_100-more': 'for an American making $100k+'
+        }[this._demographic];
+    },
+
     updateBreakdown: function () {
         var self = this;
         this._breakdownContainer.selectAll('.measure').remove();
 
-        var inputData = this._data[this._timescale].all;
+        var inputData = this._data[this._timescale][this._demographic];
         if (!self._time) {
-            inputData = this._data[Timescale.DAY].all;
+            inputData = this._data[Timescale.DAY][this._demographic];
         }
 
         var data = inputData.map(function (d) {
@@ -649,7 +728,7 @@ var HoverDetails = {
 var DemographicView = {
     create: function () {
         var result = Object.create(DemographicView);
-        result._dispatch = d3.dispatch();
+        result._dispatch = d3.dispatch('demographicChanged');
         return result;
     },
 
@@ -670,6 +749,19 @@ var DemographicView = {
             return this;
         } else {
             return this._time;
+        }
+    },
+
+    demographic: function (demographic) {
+        if (demographic) {
+            this._demographic = demographic;
+            if (this._element) {
+                this._demographics.selectAll('.name')
+                    .call(this.highlightSelectedDemographic(this));
+            }
+            return this;
+        } else {
+            return this._demographic;
         }
     },
 
@@ -694,15 +786,46 @@ var DemographicView = {
     element: function (element) {
         if (element) {
             this._element = element;
-            element.attr('class', 'details')
-                .append('rect')
-                .attr('width', this._size[0])
-                .attr('height', this._size[1])
-                .attr('fill', 'green');
+            var self = this;
+            element.attr('class', 'demographics');
+                // .append('rect')
+                // .attr('width', this._size[0])
+                // .attr('height', this._size[1])
+                // .attr('fill', 'green');
+            this._header = element.append('text')
+                .attr('class', 'header')
+                .attr('dy', '1em')
+                .text('Explore demographics');
+            this._demographics = element.selectAll('.demographic')
+                .data(Object.keys(this._data[this._timescale]))
+                .enter()
+                .append('g')
+                .attr('class', 'demographic')
+                .attr('transform', function (d, i) { return 'translate(0 ' + (40 + i * 15) + ')'; });
+            this._demographics.append('text')
+                .attr('x', 100)
+                .text(function (d) { return d; })
+                .call(this.highlightSelectedDemographic(this));
+            this._demographics
+                .on('click', function (d) {
+                    self._dispatch.call('demographicChanged', self, d);
+                });
             return this;
         } else {
             return this._element;
         }
+    },
+
+    highlightSelectedDemographic: function (self) {
+        return function (selection) {
+            selection.attr('class', function (d) {
+                return 'name' + (self._demographic === d ? ' selected' : '');
+            });
+        }
+    },
+
+    on: function (event, callback) {
+        return this._dispatch.on(event, callback);
     }
 };
 
@@ -723,6 +846,7 @@ function handleData (svg) {
         var area = AreaChart.create()
             .data(data)
             .timescale(Timescale.DAY)
+            .demographic('all')
             .size(700, 450)
             .element(
                 svg.append('g')
@@ -731,6 +855,7 @@ function handleData (svg) {
 
         var details = HoverDetails.create()
             .data(data)
+            .demographic('all')
             .timescale(Timescale.DAY)
             .size(250, 450)
             .element(
@@ -741,6 +866,7 @@ function handleData (svg) {
         var demographics = DemographicView.create()
             .data(data)
             .timescale(Timescale.DAY)
+            .demographic('all')
             .size(700, 290)
             .element(
                 svg.append('g')
@@ -766,13 +892,19 @@ function handleData (svg) {
                     area.selectedActivity(activity);
                 }
             });
+
+        demographics.on('demographicChanged', function (demographic) {
+            area.demographic(demographic);
+            details.demographic(demographic);
+            demographics.demographic(demographic);
+        });
     }
 }
 
 function run () {
     var svg = d3.select('#canvas')
         .append('svg')
-        .attr('width', 960)
+        .attr('width', 960 + 30)
         .attr('height', 800);
 
     d3.queue()
@@ -781,248 +913,6 @@ function run () {
         .defer(d3.csv, 'year.csv')
         .defer(d3.csv, 'age.csv')
         .await(handleData(svg));
-}
-
-var State = {
-    selectedActivity: undefined,
-    timescale: 'day'
-};
-
-var Chart = {
-    initializeAxes: function (context) {
-        context.axes = {
-            x: context.chart.append('g')
-                .attr('transform', 'translate(0 ' + context.size.height + ')'),
-            y: context.chart.append('g')
-        };
-    },
-
-    xAxisFor: function (timescale, context) {
-        switch (timescale) {
-            case 'day':
-                context.x = d3.scaleTime()
-                    .domain([new Date(2001, 6, 4, 4), new Date(2001, 6, 5, 4)])
-                    .range([0, context.size.width]);
-                context.x.axis = d3.axisBottom(context.x)
-                    .tickFormat(d3.timeFormat('%I %p'))
-                    .ticks(d3.timeHour.every(2));
-                break;
-            case 'week':
-                context.x = d3.scaleTime()
-                    .domain([new Date(2001, 6, 1, 0), new Date(2001, 6, 7, 0)])
-                    .range([0, context.size.width]);
-                context.x.axis = d3.axisBottom(context.x)
-                    .tickFormat(d3.timeFormat('%a'))
-                    .ticks(d3.timeDay.every(1));
-                break;
-            case 'year':
-                context.x = d3.scaleTime()
-                    .domain([new Date(2001, 0, 1, 0), new Date(2001, 11, 31)])
-                    .range([0, context.size.width]);
-                context.x.axis = d3.axisBottom(context.x)
-                    .tickFormat(d3.timeFormat('%B'))
-                    .ticks(d3.timeMonth.every(1));
-                break;
-            case 'age':
-                context.x = d3.scaleLinear()
-                    .domain([15, 80])
-                    .range([0, context.size.width]);
-                context.x.axis = d3.axisBottom(context.x);
-                break;
-        }
-    },
-
-    transitionXAxis: function (context) {
-        context.axes.x.transition()
-            .duration(1000)
-            .call(context.x.axis);
-    }
-}
-
-function run2() {
-    var context = Utils.createContext('#content', 960, 500);
-    
-    var y = d3.scaleLinear()
-        .domain([0, 1])
-        .range([context.size.height, 0]);
-    y.axis = d3.axisLeft(y)
-        .tickFormat(function (d) {
-            return Math.abs(Math.floor(d * 100) - d * 100) < .001 ? d3.format('.0%')(d) : d3.format('.1%')(d);
-        });
-
-    var z = d3.scaleOrdinal(d3.schemeCategory20);
-
-    var area = d3.area()
-        .x(function (d) { return context.x(d.data.date); })
-        .y0(function (d) { return y(d[0]); })
-        .y1(function (d) { return y(d[1]); });
-
-    var singleArea = d3.area()
-        .x(function (d) { return context.x(d.data.date); })
-        .y0(function (d) { return y(0); })
-        .y1(function (d) { return y(d[1] - d[0]); });
-
-    d3.queue()
-        .defer(d3.csv, 'day.csv')
-        .defer(d3.csv, 'week.csv')
-        .defer(d3.csv, 'year.csv')
-        .defer(d3.csv, 'age.csv')
-        .await(function (error, dayData, weekData, yearData, ageData) {
-            if (error) {
-                console.error(error);
-                return;
-            }
-
-            var data = Utils.combineData(dayData, weekData, yearData, ageData);
-
-            Chart.initializeAxes(context);
-            context.chart.append('g').attr('class', 'layer');
-
-            var slider = DotSlider.create()
-                .domain(['Day', 'Week', 'Year', 'Lifetime'])
-                .size(960, 50)
-                .element(context.svg.append('g'))
-                .on('change', function (d, i) {
-                    changeTimescale(d === 'Lifetime' ? 'age' : d.toLowerCase());
-                });
-
-            function changeTimescale (timescale) {
-                State.timescale = timescale;
-                Chart.xAxisFor(timescale, context);
-                Chart.transitionXAxis(context);
-                
-                var n = 0;
-                Utils.fadeOut(context.chart.selectAll('.layer'))
-                    .each(function () { n++; })
-                    .remove()
-                    .on('end', function () {
-                        n--;
-                        if (n > 0) return;
-
-                        var layer = context.chart.selectAll('.layer')
-                            .data(data[timescale].all)
-                            .enter()
-                            .append('g')
-                            .attr('class', 'layer');
-                        
-                        layer.append('path')
-                            .attr('class', 'area')
-                            .style('fill', function (d) { return z(d.key); })
-                            .style('opacity', 0)
-                            .attr('d', area)
-                            .call(Utils.fadeIn);
-                        
-                        layer
-                            .on('mouseover', function () {
-                                var self = this;
-                                d3.select('#helptext').text(
-                                    d3.select(this).data()[0].key
-                                );
-                                layer.selectAll('.area')
-                                    .filter(function () { return !self.contains(this); })
-                                    .transition()
-                                    .style('fill', function (d) {
-                                        var color = d3.hsl(z(d.key));
-                                        color.s = 0;
-                                        return color;
-                                    });
-                            })
-                            .on('click', function () {
-                                var activity = d3.select(this).data()[0].key;
-                                var self = this;
-
-                                if (State.selectedActivity === activity) {
-                                    y.domain([0, 1]);
-                                    context.axes.y
-                                        .transition()
-                                        .duration(1000)
-                                        .call(y.axis);
-                                    d3.select(this).select('.area')
-                                        .transition('shape')
-                                        .duration(1000)
-                                        .attr('d', singleArea)
-                                        .transition()
-                                        .duration(1000)
-                                        .attr('d', area);
-                                    layer.filter(function () { return this !== self; })
-                                        .select('.area')
-                                        .attr('d', area);
-                                    layer.transition()
-                                        .delay(1800)
-                                        .duration(500)
-                                        .style('opacity', 1)
-                                        .style('pointer-events', 'visiblePainted');
-                                    State.selectedActivity = undefined;
-                                } else {
-                                    layer.filter(function () { return this !== self; })
-                                        .style('pointer-events', 'none')
-                                        .call(Utils.fadeOut);
-                                    d3.select(this).select('.area')
-                                        .transition('shape')
-                                        .delay(300)
-                                        .duration(1000)
-                                        .attr('d', singleArea)
-                                        .on('end', function () {
-                                            y.domain([0, d3.max(
-                                                d3.select(this).data()[0],
-                                                function (d) {
-                                                    return d[1] - d[0];
-                                                }
-                                            )]);
-                                            context.axes.y
-                                                .transition()
-                                                .duration(1000)
-                                                .call(y.axis);
-                                            d3.select(this)
-                                                .transition('shape')
-                                                .duration(1000)
-                                                .attr('d', singleArea);
-                                        });
-                                    State.selectedActivity = activity;
-                                }
-                            });
-                        
-                        context.chart.on('mouseout', function () {
-                            layer.selectAll('path')
-                                .transition()
-                                .style('fill', function (d) { return z(d.key); });
-                        });
-                    });
-            }
-
-            d3.select('#demographics')
-                .selectAll('a')
-                .data(Object.keys(data['day']))
-                .enter()
-                .append('a')
-                .attr('href', '#')
-                .text(function (d) { return d + ' '; })
-                .on('click', function (d) {
-                    context.chart.selectAll('.layer')
-                        .data(data[State.timescale][d])
-                        .select('.area')
-                        .transition('shape')
-                        .duration(1000)
-                        .attr('d', State.selectedActivity ? singleArea : area);
-                });
-
-            changeTimescale(State.timescale);
-            context.axes.y.call(y.axis);
-
-            // layer.filter(function (d) { return d.center !== undefined; })
-            //     .append('text')
-            //     .attr('x', function (d) { return x(Utils.dateFromMinute(d.center.x)); })
-            //     // .attr('x', function (d) { return x(Utils.dateFromDayOfWeek(d.center.x)); })
-            //     // .attr('x', function (d) { return x(Utils.dateFromDayOfYear(d.center.x)); })
-            //     // .attr('x', function (d) { return x(d.center.x); })
-            //     .attr('y', function (d) { return y(d.center.y); })
-            //     .attr('dy', '.35em')
-            //     .style('text-anchor', 'middle')
-            //     .style('font', '10px sans-serif')
-            //     .text(function (d) { return d.key; });
-
-            
-        });
 }
 
 document.addEventListener('DOMContentLoaded', run);
