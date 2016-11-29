@@ -1,3 +1,22 @@
+An American Day - Prototype and process document
+===
+
+Team
+---
+
+* Ben McMorran, benmcmorran
+* Francisco Sanchez, friscis
+
+Prototype
+---
+
+![screenshot](process/chart17.PNG)
+
+A live demo of our project is available at http://benmcmorran.github.io/DataVisFinal
+
+The WIP process document is Process.pdf in the root of the repository.
+
+<!--
 Final Project - Interactive Data Visualization  
 ===
 
@@ -149,3 +168,4 @@ References
 ---
 
 - Much of this final project is adapted from: http://dataviscourse.net/2015/project/
+-->
