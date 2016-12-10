@@ -149,7 +149,9 @@ var Utils = {
             case Timescale.LIFETIME:
                 return axis;
         }
-    }
+    },
+
+    demographicColorScale: d3.scaleOrdinal(d3.schemeCategory20)
 };
 
 var DotSlider = {
@@ -261,6 +263,9 @@ var AreaChart = {
         if (timescale) {
             var oldTimescale = this._timescale;
             this._timescale = timescale;
+            if (this._demographic) {
+                this._demographic = [this._demographic[0]];
+            }
 
             if (this._element && oldTimescale !== timescale) {
                 if (this._selectedActivity) {
@@ -291,8 +296,12 @@ var AreaChart = {
                     .on('end', function () {
                         self._layers = self.generateStackedLayers();
                         self._layerContainer.transition()
+                            .style('pointer-events', 'visiblePainted')
                             .style('opacity', 1);
                     });
+
+                this._lineContainer.transition()
+                    .style('opacity', 0);
             }
             return this;
         } else {
@@ -344,7 +353,7 @@ var AreaChart = {
                     .duration(1000)
                     .attr('d', this._singleArea)
                     .on('end', function () {
-                        self.normalizeYAxis(d3.select(this).data()[0]);
+                        self.normalizeYAxis([d3.select(this).data()[0]]);
                         d3.select(this)
                             .transition()
                             .duration(1000)
@@ -362,7 +371,8 @@ var AreaChart = {
         if (demographic) {
             if (this._element && demographic !== this._demographic) {
                 var self = this;
-                var newLayers = this._layers.data(this._data[this._timescale][demographic]);
+
+                var newLayers = this._layers.data(this._data[this._timescale][demographic[0]]);
                 if (!this._selectedActivity) {
                     newLayers
                         .select('.area')
@@ -370,21 +380,32 @@ var AreaChart = {
                         .duration(1000)
                         .attr('d', this._area);
                 } else {
+                    var multiple = demographic.length > 1;
+                    if (!multiple) {
+                        self.updateLines([]);
+                    }
                     newLayers.filter(function (d) {
-                           return d.key === self._selectedActivity;
+                            return d.key === self._selectedActivity;
                         })
                         .select('.area')
                         .transition()
-                        .duration(1000)
+                        .duration((multiple || this._demographic.length > 1) ? 0 : 1000)
                         .attr('d', this._singleArea)
                         .on('end', function () {
-                            self.normalizeYAxis(self._data[self._timescale][demographic].filter(function (d) {
-                                return d.key === self._selectedActivity;
-                            })[0]);
+                            self.normalizeYAxis(demographic.map(function (d) {
+                                return self._data[self._timescale][d].filter(function (d) {
+                                    return d.key === self._selectedActivity;
+                                })[0];
+                            }));
                             d3.select(this)
                                 .transition()
                                 .duration(1000)
                                 .attr('d', self._singleArea);
+                            if (multiple) {
+                                self._lineContainer.transition()
+                                    .style('opacity', 1);
+                                self.updateLines(demographic);
+                            }
                         });
 
                     // Temporarily change the domain so that the other activities are in
@@ -398,8 +419,20 @@ var AreaChart = {
                         .attr('d', this._area);
                     this._y.domain(oldDomain);
                 }
+
+                if (demographic.length > 1 && this._demographic.length === 1) {
+                    this._layerContainer.transition()
+                        .style('pointer-events', 'none')
+                        .duration(500)
+                        .style('opacity', 0);
+                } else if (demographic.length === 1 && this._demographic.length > 1) {
+                    this._layerContainer.transition()
+                        .style('pointer-events', 'visiblePainted')
+                        .duration(500)
+                        .style('opacity', 1);
+                }
             }
-            this._demographic = demographic;
+            this._demographic = demographic.slice();
             return this;
         } else {
             return this._demographic;
@@ -429,6 +462,7 @@ var AreaChart = {
 
             // Add the layer container first so that the axes are always on top
             this._layerContainer = this._chart.append('g');
+            this._lineContainer = this._chart.append('g');
 
             this._y = d3.scaleLinear()
                 .domain([0, 1])
@@ -508,7 +542,7 @@ var AreaChart = {
         this._layerContainer.selectAll('.layer').remove();
 
         var layer = this._layerContainer.selectAll('.layer')
-                .data(this._data[this._timescale][this._demographic])
+                .data(this._data[this._timescale][this._demographic[0]])
                 .enter()
                 .append('g')
                 .attr('class', 'layer');
@@ -539,6 +573,60 @@ var AreaChart = {
         return layer;
     },
 
+    updateLines: function (newDemographics) {
+        var self = this;
+        var lines = this._lineContainer
+            .selectAll('.line')
+            .data(newDemographics, function (d) { return d; });
+        
+        function position (segment) {
+            segment
+                .attr('x1', function (d) { return self._x(d[0].data.date); })
+                .attr('x2', function (d) { return self._x(d[1].data.date); })
+                .attr('y1', function (d) { return self._y(d[0][1] - d[0][0]); })
+                .attr('y2', function (d) { return self._y(d[1][1] - d[1][0]); });
+        }
+
+        function draw (line) {
+            line.style('opacity', 0)
+                .selectAll('line')
+                .data(function (dem) {
+                    var data = self._data[self._timescale][dem].filter(function (d) {
+                        return d.key == self._selectedActivity;
+                    })[0];
+                    return data.map(function (d, i) {
+                        var result = [d, data[i + ((i == data.length - 1) ? 0 : 1)]];
+                        result.key = dem;
+                        return result;
+                    });
+                })
+                .enter()
+                .append('line')
+                .call(position)
+                .style('stroke-width', 1)
+                .style('stroke', function (d) { return Utils.demographicColorScale(d.key); });
+            line.transition()
+                .duration(500)
+                .style('opacity', 1);
+        }
+
+        lines.exit()
+            .transition()
+            .duration(500)
+            .style('opacity', 0)
+            .remove();
+
+        lines.enter()
+            .append('g')
+            .attr('class', 'line')
+            .call(draw);
+
+        lines.selectAll('line')
+            .transition()
+            .duration(1000)
+            .call(position);
+    },
+
     resetYAxis: function () {
         this._y.domain([0, 1]);
         this._ySelection.transition()
@@ -547,12 +635,11 @@ var AreaChart = {
     },
 
     normalizeYAxis: function (data) {
-        this._y.domain([0, d3.max(
-            data,
-            function (d) {
+        this._y.domain([0, d3.max(data, function (d) {
+            return d3.max(d, function (d) {
                 return d[1] - d[0];
-            }
-        )]);
+            });
+        })]);
         this._ySelection
             .transition()
             .duration(1000)
@@ -591,7 +678,7 @@ var HoverDetails = {
 
     demographic: function (demographic) {
         if (demographic) {
-            this._demographic = demographic;
+            this._demographic = demographic.slice();
             if (this._element) {
                 this._demographicHeader.text(this.generateDemographicText());
                 this.updateBreakdown();
@@ -780,6 +867,14 @@ var DemographicView = {
         }
     },
 
+    allowMultiple: function (allowMultiple) {
+        if (allowMultiple !== undefined) {
+            this._allowMultiple = allowMultiple;
+        } else {
+            return this._allowMultiple;
+        }
+    },
+
     data: function (data) {
         if (data) {
             this._data = data;
@@ -853,7 +948,16 @@ var DemographicView = {
             this.generateDiaryLines();
             this._demographics
                 .on('click', function (d) {
-                    self._dispatch.call('demographicChanged', self, d);
+                    if (self._allowMultiple) {
+                        if (self._demographic.includes(d)) {
+                            self._demographic.splice(self._demographic.indexOf(d), 1);
+                        } else {
+                            self._demographic.push(d);
+                        }
+                    } else {
+                        self._demographic = [d];
+                    }
+                    self._dispatch.call('demographicChanged', self, self._demographic);
                 });
             return this;
         } else {
@@ -864,7 +968,10 @@ var DemographicView = {
     highlightSelectedDemographic: function (self) {
         return function (selection) {
             selection.attr('class', function (d) {
-                return 'name' + (self._demographic === d ? ' selected' : '');
+                return 'name' + (self._demographic.includes(d) ? ' selected' : '');
+            })
+            .style('fill', function (d) {
+                return self._demographic.includes(d) ? Utils.demographicColorScale(d) : 'black';
             });
         }
     },
@@ -972,7 +1079,7 @@ function handleData (svg) {
         var area = AreaChart.create()
             .data(data)
             .timescale(Timescale.DAY)
-            .demographic('all')
+            .demographic(['all'])
             .size(700, 450)
             .element(
                 svg.append('g')
@@ -992,7 +1099,7 @@ function handleData (svg) {
         var demographics = DemographicView.create()
             .data(data)
             .timescale(Timescale.DAY)
-            .demographic('all')
+            .demographic(['all'])
             .size(700, 290)
             .colorScale(area.z())
             .element(
@@ -1003,6 +1110,8 @@ function handleData (svg) {
         slider.on('change', function (d) {
             area.timescale(d);
             details.timescale(d);
+            demographics.allowMultiple(false);
+            demographics.demographic([demographics.demographic()[0]]);
         });
 
         area
@@ -1016,15 +1125,17 @@ function handleData (svg) {
                 if (area.selectedActivity()) {
                     area.selectedActivity(null);
                     demographics.activity(null);
+                    demographics.allowMultiple(false);
                 } else {
                     area.selectedActivity(activity);
                     demographics.activity(activity);
+                    demographics.allowMultiple(true);
                 }
             });
 
         demographics.on('demographicChanged', function (demographic) {
             area.demographic(demographic);
-            details.demographic(demographic);
+            details.demographic(demographic[0]);
             demographics.demographic(demographic);
         });
     }
