@@ -987,9 +987,14 @@ var DemographicView = {
             selection.attr('class', function (d) {
                 return 'name' + (self._demographic.includes(d) ? ' selected' : '');
             })
-            .style('fill', function (d) {
-                return self._demographic.includes(d) ? Utils.demographicColorScale(d) : 'black';
-            });
+
+            if (self._allowMultiple) {
+                selection.style('fill', function (d) {
+                    return self._demographic.includes(d) ? Utils.demographicColorScale(d) : 'black';
+                });
+            } else {
+                selection.style('fill', '');
+            }
         }
     },
 
