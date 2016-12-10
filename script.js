@@ -151,6 +151,23 @@ var Utils = {
         }
     },
 
+    demographicLabelMapping: {
+        'all': 'Everyone',
+        'age_15-24': 'Ages 15-24',
+        'age_25-64': 'Ages 25-64',
+        'age_65-more': 'Ages 65+',
+        'female': 'Female',
+        'male': 'Male',
+        'black': 'Black',
+        'white': 'White',
+        'hispanic': 'Hispanic',
+        'employed': 'Employed',
+        'unemployed': 'Unemployed',
+        'income_less-50': 'Income $0-$50k',
+        'income_50-100': 'Income $50k-$100k',
+        'income_100-more': 'Income $100k+'
+    },
+
     demographicColorScale: d3.scaleOrdinal(d3.schemeCategory20)
 };
 
@@ -930,7 +947,7 @@ var DemographicView = {
                 .attr('dy', '1em')
                 .text('Explore demographics');
             this._demographics = element.selectAll('.demographic')
-                .data(Object.keys(this._data[this._timescale]))
+                .data(Object.keys(Utils.demographicLabelMapping))
                 .enter()
                 .append('g')
                 .attr('class', 'demographic')
@@ -938,7 +955,7 @@ var DemographicView = {
             this._demographics.append('text')
                 .attr('x', 100)
                 .attr('dy', '.85em')
-                .text(function (d) { return d; })
+                .text(function (d) { return Utils.demographicLabelMapping[d]; })
                 .call(this.highlightSelectedDemographic(this));
             this._xSelection = this._element.append('g')
                 .attr('transform', 'translate(110 240)');
