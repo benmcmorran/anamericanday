@@ -1134,6 +1134,7 @@ function handleData (svg) {
             details.timescale(d);
             demographics.allowMultiple(false);
             demographics.demographic([demographics.demographic()[0]]);
+            demographics.activity(null);
         });
 
         area
