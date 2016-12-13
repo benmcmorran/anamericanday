@@ -580,7 +580,15 @@ var AreaChart = {
                     self._cursor.style('display', 'none');
                     self._dispatch.call('cursorChanged', self, null);
                     self._dispatch.call('hoverActivityChanged', self, null);
-                });
+                })
+				.append('rect')
+				.attr('class', 'click-capture')
+				.style('visibility', 'hidden')
+				.attr('x', 0)
+				.attr('y', 0)
+				.attr('width', this._size[0] - 50)
+				.attr('height', this._size[1] - 20)
+				.attr('pointer-events', 'all');
 
             this._layers = this.generateStackedLayers();
 
@@ -863,7 +871,7 @@ var HoverDetails = {
                 value /= 1440;
             } else {
                 var index = Utils.dateToIndex(self._timescale, self._time);
-                value = d[index][1] - d[index][0];
+                value = d[index%1440][1] - d[index%1440][0];
             }
 
             return {
