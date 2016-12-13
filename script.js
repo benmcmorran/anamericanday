@@ -1059,9 +1059,11 @@ var DemographicView = {
     generateDiaryLines: function () {
         var self = this;
 
-        this._x = Utils.generateTimeScale(Timescale.DAY)
+        this._x = d3.scaleLinear()
+				.domain([0, 100])
                 .range([0, this._size[0] - 110]);
-        this._xAxis = Utils.configureTimeAxis(Timescale.DAY, d3.axisBottom(this._x));
+        this._xAxis = d3.axisBottom(this._x)
+			.tickFormat(function(d) { return d + "%"; });
         this._xSelection.call(this._xAxis);
 
         this._diaries.selectAll('.diaryElement').remove();
@@ -1069,37 +1071,38 @@ var DemographicView = {
             .data(function (d) {
                 var result = [];
                 var stacks = self._data[self._timescale][d];
-                
+				
                 for (var i = 0; i < stacks[0].length; i++) {
                     var maxActivity;
                     var maxPercent = 0;
                     for (var j = 0; j < stacks.length; j++) {
-                        var percent = stacks[j][i][1] - stacks[j][i][0];
-                        if (percent > maxPercent) {
-                            maxPercent = percent;
-                            maxActivity = stacks[j].key;
-                        }
-                    }
-
-                    if (result.length === 0 || result[result.length - 1].activity !== maxActivity) {
-                        if (result.length > 0) {
-                            result[result.length - 1].end = Utils.dateFromMinute(i);
-                        }
-                        result.push({
-                            activity: maxActivity,
-                            start: Utils.dateFromMinute(i)
-                        });
+						if(result.length === 0 || result.length -1 < j){
+							result.push({
+								activity: stacks[j].key,
+								minutes: stacks[j][i][1] - stacks[j][i][0]
+							});
+						}
+						result[j].minutes += stacks[j][i][1] - stacks[j][i][0];
                     }
                 }
-
-                result[result.length - 1].end = Utils.dateFromMinute(1440);
+				result.sort(function(a, b) {
+					return b.minutes - a.minutes
+				});
+				for (var i = 0; i < result.length; i++) {
+					if(i === 0) {
+						result[i].start = 0;
+					}
+					else {
+						result[i].start = result[i-1].start + result[i-1].minutes;
+					}
+				}
                 return result;
             })
             .enter()
             .append('rect')
             .attr('class', 'diaryElement')
-            .attr('x', function (d) { return self._x(d.start); })
-            .attr('width', function (d) { return self._x(d.end) - self._x(d.start); })
+            .attr('x', function (d) { return self._x(d.start*100/1440); })
+            .attr('width', function (d) { return self._x(d.minutes*100/1440); })
             .attr('height', 10)
             .style('fill', function (d) { return self._colorScale(d.activity); });
     },
