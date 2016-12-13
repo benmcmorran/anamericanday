@@ -31,6 +31,9 @@
         "unemployed": {
             "EMPSTAT": [3, 4]
         },
+        "not_in_labor": {
+            "EMPSTAT": "05"
+        },
         "income_less-50": {
             "FAMINCOME": [1, 11]
         },
@@ -42,16 +45,15 @@
         }
     },
     "activities": {
-        "personal_care": [10000, 19999],
+        "sleeping": [10100, 10199],
+        "personal_care": [10200, 19999],
         "household_activities": [20000, 29999],
         "care_household_members": [30000, 39999],
         "care_non_household_members": [40000, 49999],
         "work": [50000, 59999],
         "education": [60000, 69999],
         "consumer_purchases": [70000, 79999],
-        "pro_services": [80000, 89999],
-        "household_services": [90000, 99999],
-        "gov_services": [100000, 109999],
+        "services": [80000, 109999],
         "eat_drink": [110000, 119999],
         "social_relax_leisure": [120000, 129999],
         "sports_exercise": [130000, 139999],

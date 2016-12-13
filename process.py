@@ -49,7 +49,10 @@ def in_bin(test, record):
                 numeric_value = int(record[field])
                 result = result and (value[0] <= numeric_value <= value[1])
             else:
-                raise 'Unknown bin test'
+                print(test)
+                print(type(value).__name__)
+                print(value)
+                raise 'Unknown bin test dict'
         return result
     else:
         raise 'Unknown bin test'
@@ -80,7 +83,7 @@ def run():
     
     day_counts = [[[0] * len(activities) for _ in range(len(bins))] for _ in range(60 * 24)]
     week_counts = [[[0] * len(activities) for _ in range(len(bins))] for _ in range(7)]
-    year_counts = [[[0] * len(activities) for _ in range(len(bins))] for _ in range(365)]
+    year_counts = [[[0] * len(activities) for _ in range(len(bins))] for _ in range(53)]
     age_counts = [[[0] * len(activities) for _ in range(len(bins))] for _ in range(80 - 15 + 1)]
 
     c = 0
@@ -115,7 +118,7 @@ def run():
                                     day_counts[minute][j][i] += weight
                             if day_of_week < 7:
                                 week_counts[day_of_week][j][i] += weight * duration
-                            year_counts[day][j][i] += weight * duration
+                            year_counts[day//7][j][i] += weight * duration
                             if age <= 80:
                                 age_counts[age - 15][j][i] += weight * duration
 
@@ -134,7 +137,7 @@ def find_sequences():
     fields = config['fields']
     activity_counts = {}
 
-    with open('raw_data.dat') as input:
+    with open('raw_data_small.dat') as input:
         case_id = None
         activity_list = []
         c = 0

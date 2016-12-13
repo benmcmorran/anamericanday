@@ -40,7 +40,7 @@ var Utils = {
     },
 
     dateFromDayOfYear: function (dayOfYear) {
-        return d3.timeDay.offset(new Date(2001, 0, 1, 0), dayOfYear);
+        return d3.timeDay.offset(new Date(2001, 0, 1, 0), dayOfYear*7);
     },
 
     dateToIndex: function (timescale, time) {
@@ -50,7 +50,7 @@ var Utils = {
             case Timescale.WEEK:
                 return d3.timeDay.count(new Date(2001, 6, 1, 0), time);
             case Timescale.YEAR:
-                return d3.timeDay.count(new Date(2001, 0, 1, 0), time);
+                return Math.floor(d3.timeDay.count(new Date(2001, 0, 1, 0), time)/52);
             case Timescale.LIFETIME:
                 return Math.floor(time - 15);
         }
@@ -166,6 +166,25 @@ var Utils = {
         'income_less-50': 'Income $0-$50k',
         'income_50-100': 'Income $50k-$100k',
         'income_100-more': 'Income $100k+'
+    },
+	
+	activityLabelMapping: {
+        'sleeping': 'Sleeping',
+        'personal_care': 'Personal Care',
+        'household_activities': 'Household Activities',
+        'care_household_members': 'Care for Household Members',
+        'care_non_household_members': 'Care for Non-Household Members',
+        'work': 'Work',
+        'education': 'Education',
+        'consumer_purchases': 'Consumer Purchases',
+        'services': 'Services',
+        'eat_drink': 'Eating and Drinking',
+        'social_relax_leisure': 'Social and Leisure',
+        'sports_exercise': 'Sports and Exercise',
+        'religion': 'Religion',
+        'volunteering': 'Volunteering',
+        'calls': 'Calling and Texting',
+        'travel': 'Travel'
     },
 
     demographicColorScale: d3.scaleOrdinal(d3.schemeCategory20)
@@ -345,14 +364,26 @@ var AreaChart = {
                     .transition()
                     .duration(1000)
                     .attr('d', this._area);
-                this._layers.filter(function (d) {
-                        return d.key !== self._selectedActivity;
-                    })
-                    .transition()
-                    .delay(1800)
-                    .duration(500)
-                    .style('opacity', 1)
-                    .style('pointer-events', 'visiblePainted');
+				if(this._selectedActivity == "sleeping") {
+					this._layers.filter(function (d) {
+							return d.key !== self._selectedActivity;
+						})
+						.transition()
+						.delay(1000)
+						.duration(500)
+						.style('opacity', 1)
+						.style('pointer-events', 'visiblePainted');
+				}
+				else {
+					this._layers.filter(function (d) {
+							return d.key !== self._selectedActivity;
+						})
+						.transition()
+						.delay(1800)
+						.duration(500)
+						.style('opacity', 1)
+						.style('pointer-events', 'visiblePainted')
+				}
             } else if (this._selectedActivity !== activity) {
                 this._layers.filter(function (d) {
                         return d.key !== activity;
@@ -361,21 +392,40 @@ var AreaChart = {
                     .transition()
                     .duration(500)
                     .style('opacity', 0);
-                this._layers.filter(function (d) {
-                        return d.key === activity;
-                    })
-                    .select('.area')
-                    .transition()
-                    .delay(300)
-                    .duration(1000)
-                    .attr('d', this._singleArea)
-                    .on('end', function () {
-                        self.normalizeYAxis([d3.select(this).data()[0]]);
-                        d3.select(this)
-                            .transition()
-                            .duration(1000)
-                            .attr('d', self._singleArea);
-                    });
+				if(activity == "sleeping") {
+					this._layers.filter(function (d) {
+							return d.key === activity;
+						})
+						.select('.area')
+						.transition()
+						.delay(300)
+						.duration(0)
+						.attr('d', this._singleArea)
+						.on('end', function () {
+							self.normalizeYAxis([d3.select(this).data()[0]]);
+							d3.select(this)
+								.transition()
+								.duration(1000)
+								.attr('d', self._singleArea);
+						});
+				}
+				else {
+					this._layers.filter(function (d) {
+							return d.key === activity;
+						})
+						.select('.area')
+						.transition()
+						.delay(300)
+						.duration(1000)
+						.attr('d', this._singleArea)
+						.on('end', function () {
+							self.normalizeYAxis([d3.select(this).data()[0]]);
+							d3.select(this)
+								.transition()
+								.duration(1000)
+								.attr('d', self._singleArea);
+						});
+				}
             }
             this._selectedActivity = activity;
             return this;
@@ -818,7 +868,7 @@ var HoverDetails = {
 
             return {
                 value: value,
-                description: d.key 
+                description: Utils.activityLabelMapping[d.key] 
             }
         });
         data = data.sort(function (a, b) {
