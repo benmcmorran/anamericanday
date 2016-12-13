@@ -880,7 +880,7 @@ var HoverDetails = {
         var newMeasures = measures.enter()
             .append('g')
             .attr('class', function (d) {
-                return 'measure' + ((self._focusActivity === d.description) ? ' focused' : '');
+                return 'measure' + ((Utils.activityLabelMapping[self._focusActivity] === d.description) ? ' focused' : '');
             })
             .attr('transform', function (d, i) { return 'translate(0 ' + (i * 15) + ')' });
         newMeasures.append('text')
