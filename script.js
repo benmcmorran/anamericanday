@@ -163,6 +163,7 @@ var Utils = {
         'hispanic': 'Hispanic',
         'employed': 'Employed',
         'unemployed': 'Unemployed',
+        'not_in_labor': 'Not In Labor',
         'income_less-50': 'Income $0-$50k',
         'income_50-100': 'Income $50k-$100k',
         'income_100-more': 'Income $100k+'
@@ -1016,7 +1017,7 @@ var DemographicView = {
                 .text(function (d) { return Utils.demographicLabelMapping[d]; })
                 .call(this.highlightSelectedDemographic(this));
             this._xSelection = this._element.append('g')
-                .attr('transform', 'translate(110 240)');
+                .attr('transform', 'translate(110 250)');
             this._diaries = this._demographics.append('g')
                 .attr('class', 'diary')
                 .attr('transform', 'translate(110 0)');
@@ -1229,7 +1230,7 @@ function run () {
     var svg = d3.select('#canvas')
         .append('svg')
         .attr('width', 960 + 30)
-        .attr('height', 770);
+        .attr('height', 780);
 
     d3.queue()
         .defer(d3.csv, 'day.csv')
